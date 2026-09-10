@@ -1,0 +1,35 @@
+{
+  "name": "@comity-dev/semgrep-rules",
+  "version": "0.1.0",
+  "description": "Reusable Semgrep rules for Comity structural source-code patterns. Development tooling.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "comity": {
+    "layer": "dev-tooling"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./rules": "./rules/"
+  },
+  "files": [
+    "./dist",
+    "./rules"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3"
+  }
+}

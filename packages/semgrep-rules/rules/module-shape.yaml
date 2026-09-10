@@ -1,0 +1,43 @@
+rules:
+  - id: comity-module-no-default-export
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Comity Core Modules MUST use named exports, not default exports. Default
+      exports obscure the public surface and break tree-shaking guarantees.
+        - public-api.md §3
+        - architecture-validation.md §4
+    pattern: export default $X
+    paths:
+      include:
+        - "**/packages/**/src/index.ts"
+        - "**/packages/**/src/contracts/index.ts"
+      exclude:
+        - "**/node_modules/**"
+    metadata:
+      category: comity-architecture
+      standard: public-api.md
+      section: 3
+
+  - id: comity-module-must-have-internal-marker
+    languages: [typescript]
+    severity: INFO
+    message: |
+      Files intended to be internal-only SHOULD be located under an `internal/`
+      or `lazy/` directory; the ESLint rule `@comity/no-forbidden-deep-import`
+      enforces the reverse — consumers MUST NOT reach into these paths.
+        - public-api.md §3.2
+    patterns:
+      - pattern: |
+          /** @internal */
+          ...
+      - pattern-not-inside: |
+          /** @internal */
+          ...
+          ...
+          /** @internal */
+          ...
+    metadata:
+      category: comity-architecture
+      standard: public-api.md
+      section: "3.2"

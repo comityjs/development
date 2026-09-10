@@ -1,0 +1,38 @@
+rules:
+  - id: comity-adapter-must-declare-implements
+    languages: [typescript]
+    severity: ERROR
+    message: |
+      A Technology Adapter MUST `implements` exactly one Core Module contract.
+      The implementing class is the structural binding between the technology
+      and the contract.
+        - adapters.md §11
+        - ADR-007
+    pattern: |
+      class $NAME implements $I {
+        ...
+      }
+    pattern-not: |
+      class $NAME implements $I {
+        constructor(...args) { ... }
+        ...
+      }
+    metadata:
+      category: comity-architecture
+      standard: adapters.md
+      section: 11
+
+  - id: comity-adapter-no-raw-error-throw
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Adapters MAY throw platform errors, but the boundary they expose to Core
+      Modules MUST use Result<T, E>. Throwing raw Error from a Core-facing
+      method breaks the Result contract.
+        - errors.md §6
+    pattern: |
+      throw new Error($MSG);
+    metadata:
+      category: comity-architecture
+      standard: errors.md
+      section: 6

@@ -1,0 +1,41 @@
+{
+  "name": "@comity-dev/schemas",
+  "version": "0.1.0",
+  "description": "Reusable JSON Schema definitions for Comity package metadata, ADR-008 register, and repository configuration. Development tooling.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "comity": {
+    "layer": "dev-tooling"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "default": "./dist/schemas/index.js"
+    }
+  },
+  "files": [
+    "./dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,47 @@
+rules:
+  - id: comity-error-class-must-extend-base-error
+    languages: [typescript]
+    severity: ERROR
+    message: |
+      Every Comity error class MUST extend `@comity/primitives/errors/BaseError`
+      or a documented domain base. Standalone Error classes lose the structured
+      `code` field and break cross-package error handling.
+        - errors.md §6
+        - public-api.md §3.1
+    patterns:
+      - pattern: |
+          class $NAME extends Error { ... }
+      - pattern-not: |
+          class $NAME extends BaseError { ... }
+      - pattern-not: |
+          class $NAME extends $BASE { ... }
+      - pattern-not-inside: |
+          /** ... */
+          ...
+          class $NAME { ... }
+    metadata:
+      category: comity-architecture
+      standard: errors.md
+      section: 6
+
+  - id: comity-error-class-must-have-code-field
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      A Comity error class SHOULD expose a stable `code` field for cross-package
+      error matching.
+        - errors.md §6
+    pattern: |
+      class $NAME extends BaseError {
+        ...
+      }
+    pattern-not: |
+      class $NAME extends BaseError {
+        ...
+        readonly code: $T;
+        ...
+      }
+    metadata:
+      category: comity-architecture
+      standard: errors.md
+      section: 6

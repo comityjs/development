@@ -1,0 +1,397 @@
+# Documentation Standards
+
+> **Provenance:**
+> - Originally: `comity-community/docs/standards/documentation.md`
+> - Migrated to: `comity-development/docs/standards/documentation.md`
+> - Migration: Phase 4
+> - Original semantic owner: Comity-wide
+> - Canonical owner: comity-development
+
+
+This document defines the official documentation standards for Comity repositories.
+
+All packages MUST comply with these rules. Any deviation must be intentional, explicit, and justified.
+
+---
+
+## Documentation Philosophy
+
+Documentation in Comity follows these principles:
+
+- Documentation is structural, not narrative.
+- Documentation explains intent and constraints, not implementation details.
+- Documentation must prevent misuse, not teach basics.
+- Consistency across packages is more important than completeness.
+
+Documentation is not a blog, not a tutorial, and not a changelog.
+
+---
+
+## README.md — Package Landing Page
+
+### Purpose
+
+Each package MUST contain a README.md in its root.
+
+The README is a technical landing page, not full documentation.
+
+It must allow a reader to answer in under one minute:
+
+- What is this package?
+- Why does it exist?
+- What does it explicitly NOT do?
+- Where do I find more information?
+
+---
+
+### Mandatory README Structure
+
+Every `README.md` MUST follow this structure:
+
+```markdown
+# @comity/<package-name>
+
+One-line description of the package purpose.
+
+---
+
+## Purpose
+
+What this package does and why it exists.
+
+---
+
+## Scope
+
+This package:
+
+- ✅ does X
+- ✅ does Y
+
+This package does NOT:
+
+- ❌ do A
+- ❌ do B
+
+---
+
+## Public API
+
+High-level description of the public API surface. No exhaustive reference.
+
+---
+
+## Documentation
+
+- docs/overview.md
+- docs/conventions.md
+- docs/<other>.md
+
+---
+
+## Related Packages
+
+- @comity/<related>
+- @comity/<adapter>
+
+---
+
+## Status
+
+Stable | Experimental | Draft
+```
+
+---
+
+### Forbidden in `README.md`
+
+A `README.md` MUST NOT contain:
+
+- Installation instructions (unless strictly required).
+- Long examples or tutorials.
+- Architecture explanations.
+- Design decisions.
+- ADR references.
+- Framework-specific usage.
+
+All of the above MUST live in `docs/`.
+
+---
+
+### Tone of Voice Principles
+
+1. **Authoritative, not prescriptive** — Explains what the package provides, does not prescribe how to use it
+2. **3rd person and impersonal** — Never "you", "we", "our"
+3. **Concise** — Every word counts
+4. **Technical, not academic** — Domain terminology without unnecessary jargon
+5. **Coherent** — Same style across all packages
+
+#### Prohibited
+
+| Incorrect                                                                              | Correct                       |
+| -------------------------------------------------------------------------------------- | ----------------------------- |
+| "You can use this package to..."                                                       | "Provides..."                 |
+| "We expose lifecycle events..."                                                        | "Exposes lifecycle events..." |
+| "Our approach to routing..."                                                           | ---                           |
+| "This package provides HTTP contracts..." (the initial line form; this can be avoided) | "Provides HTTP contracts..."  |
+
+#### Verbs Usage Matrix
+
+| Priority | Verb     | Use For                         | Example                                     |
+| -------- | -------- | ------------------------------- | ------------------------------------------- |
+| P0       | defines  | Contracts, types, documentation | "Defines cache and store contracts"         |
+| P0       | provides | Implementations, functionality  | "Provides in-memory store implementation"   |
+| P0       | exposes  | Public API surface              | "Exposes lifecycle events"                  |
+| P1       | offers   | Optional/opt-in features        | "Offers TTL and cache key management"       |
+| P1       | encodes  | Domain concepts                 | "Encodes concepts, not implementations"     |
+| P1       | manages  | State/lifecycle                 | "Manages request-scoped context"            |
+| P1       | executes | Actions/behaviors               | "Executes HTTP requests through middleware" |
+
+Avoid: handles, does, has, includes, supports, is, works, allows.
+
+#### Scope Section Rules
+
+- Each bullet starts with a verb
+- No verb repeats more than twice in the same section
+- Avoid "it" or "this package" at the start of bullets
+- Pattern: `- ✅ defines cache and store contracts`
+- Positive bullets cover responsibilities; negative bullets cover explicit exclusions
+
+#### Public API Section Rules
+
+- Group by domain, not by files or subpaths
+- Use plural nouns for collections: `contracts`, `stores`, `hooks`
+- Do not list files or enumerations
+- Final line `No exhaustive reference; see docs for constraints.` is **MANDATORY**
+
+#### Related Packages Section Rules
+
+- Use em dash (—) between package and description
+- Description max 5 words
+- Describe the relationship type (e.g., "Kernel adapter", "Auth token integration")
+- Only list packages directly related
+
+#### Status Section Rules
+
+- Must contain: `## Status`, a stable/experimental/draft label, review metadata
+- Date in ISO format: `YYYY-MM-DD`
+- Compliance: `Compliance: N% (Green)`
+- Vocabulary: `Draft` (design incomplete or not ready for general usage), `Experimental` (usable, APIs may change without compatibility guarantees), `Stable` (public API compatibility guaranteed)
+- Do not infer maturity from package version numbers
+
+---
+
+### Review Checklist
+
+For each README, verify:
+
+- ☐ No "you", "we", "our" in text
+- ☐ Every sentence starts with subject + verb
+- ☐ Verbs match the matrix (`defines` for contracts, `provides` for impl, etc.)
+- ☐ One-line description within 10 words
+- ☐ `## Scope` uses `✅` and `❌` with leading verbs
+- ☐ `## Public API` describes domains, not files
+- ☐ `## Related Packages` uses em dash
+- ☐ `## Status` includes review metadata
+- ☐ Tone is formal but accessible (no internal jargon)
+- ☐ Sections match exactly the eight mandatory ones, in order
+
+---
+
+## Package `docs/` Directory
+
+Each package MAY contain a `docs/` directory. If present, it MUST follow the standard structure below.
+
+### Standard Structure
+
+```text
+docs/
+├─ overview.md
+├─ conventions.md
+├─ architecture.md        (optional)
+├─ events.md              (optional)
+├─ decisions/             (optional)
+```
+
+---
+
+### File Responsibilities
+
+`overview.md` (REQUIRED)
+
+Describes:
+
+- What the module is.
+- What problem it solves.
+- High-level architecture and flow.
+
+No implementation details.
+
+---
+
+`conventions.md` (REQUIRED)
+
+Defines:
+
+- Hard rules.
+- Constraints.
+- What is allowed and forbidden.
+
+This file is normative.
+
+---
+
+`architecture.md` (OPTIONAL)
+
+Use only if the module has multiple layers or non-trivial internal structure.
+
+Contains diagrams and structural explanations.
+
+---
+
+`events.md` (OPTIONAL)
+
+Required only for event-driven modules.
+
+Defines:
+
+- Event philosophy.
+- Naming conventions.
+- Event contracts.
+- Emission rules.
+
+---
+
+`decisions/*.md` (OPTIONAL)
+
+Used to document active design decisions. Package-level decisions use the ADR-style format below.
+
+---
+
+## Design Decisions (ADRs)
+
+Comity documents architectural decisions as **Architecture Decision Records (ADRs)**.
+
+Architecture ADRs live under `docs/standards/decisions/` and use the classic ADR format:
+
+```text
+# ADR-<NNN> — <short title>
+
+**Status:** <Accepted | Proposed | Deprecated>
+
+## Context
+Why this decision was needed.
+
+## Decision
+What was chosen.
+
+## Consequences
+What this enables and what it forbids.
+
+## References
+Supporting documents, standards, and code paths.
+```
+
+Rules:
+
+- One decision per file.
+- ADRs represent **architectural history**: they record what was decided and why, including decisions that are later superseded.
+- Historical decisions MUST remain traceable. Do not delete an accepted ADR; if a decision is overturned, record the new ADR and reference the old one.
+- Corrections MUST preserve historical context: describe what existed historically and what changed, rather than rewriting the record as if the current state had always been true.
+- Existing ADR references MUST NOT be removed.
+- Package-level decisions MAY be documented in `packages/<name>/docs/decisions/*.md` using the same ADR-style format.
+
+### Machine-readable ADR artifacts
+
+ADR files use the convention `ADR-NNN-title.md` (e.g., `ADR-008-explicit-core-module-composition-exceptions.md`).
+
+Machine-readable artifacts that serialize ADR decisions (e.g., data contracts, registers) live under `docs/standards/decisions/data/`:
+
+```text
+docs/standards/decisions/
+├─ ADR-NNN-title.md
+└─ data/
+   └─ adr-nnn-description.ext
+```
+
+Data artifacts use the lowercase convention `adr-nnn-description.ext`, deriving their name from the ADR they serialize:
+
+- `adr-008-core-exception-register.json`
+- `adr-008-core-exception-register.schema.json`
+
+Such artifacts are derived representations of their ADR. The ADR remains the architectural authority; a data artifact MUST NOT redefine architectural decisions.
+
+---
+
+## Monorepo `docs/` Directory
+
+The monorepo root MAY contain a `docs/` directory reserved for cross-package documentation.
+
+### Recommended Structure
+
+```text
+docs/
+├─ architecture/
+│  ├─ system-overview.md
+│  ├─ module-boundaries.md
+│
+├─ standards/
+│  ├─ decisions/
+│  │  ├─ ADR-NNN-title.md   (architecture ADRs)
+│  │  └─ data/              (machine-readable ADR artifacts)
+│  ├─ documentation.md
+│  ├─ events.md
+│  ├─ errors.md
+│
+├─ glossary.md
+```
+
+---
+
+## What Belongs Here
+
+- Platform-wide standards.
+- Cross-cutting architectural decisions.
+- Naming conventions.
+- Glossary and shared vocabulary.
+
+Package-specific details MUST NOT be placed here.
+
+---
+
+## Markdown Rules
+
+All documentation MUST follow these formatting rules:
+
+Allowed:
+
+- Standard Markdown.
+- Headings and lists.
+- Code blocks.
+
+Forbidden:
+
+- YAML frontmatter.
+- Emojis in titles.
+- Blog-style prose.
+- Decorative formatting.
+
+Documentation must be readable as plain text.
+
+---
+
+## Enforcement
+
+- New packages MUST follow this standard.
+- Existing packages SHOULD be progressively aligned.
+- Code reviews MUST enforce documentation consistency.
+
+Documentation consistency is a first-class concern.
+
+---
+
+## Final Note
+
+Documentation exists to protect the architecture.
+
+If documentation becomes unclear, verbose, or inconsistent, the architecture will follow.

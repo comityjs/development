@@ -1,0 +1,39 @@
+{
+  "name": "@comity-dev/build",
+  "version": "0.1.0",
+  "description": "Comity build tooling for package compilation. Development tooling.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "comity": {
+    "layer": "dev-tooling"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "bin": {
+    "comity-build": "./dist/bin/comity-build.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "./dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3"
+  }
+}

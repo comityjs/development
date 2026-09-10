@@ -1,0 +1,287 @@
+# Comity Coding Standards — Modules
+
+> **Provenance:**
+> - Originally: `comity-community/docs/standards/modules.md`
+> - Migrated to: `comity-development/docs/standards/modules.md`
+> - Migration: Phase 4
+> - Original semantic owner: Comity-wide
+> - Canonical owner: comity-development
+
+
+This document defines the **module model** in Comity and clarifies the distinction between
+**Application Authors** and **Module Authors**.
+
+Understanding this separation is essential to keep Comity modular, composable, and scalable.
+
+---
+
+## 1. Core Principle
+
+> Not all code in Comity is written for the same audience.
+
+Comity explicitly distinguishes between:
+
+- **Application Authors**
+- **Module Authors**
+
+They have **different responsibilities**, **different guarantees**, and **different APIs**.
+
+---
+
+## 2. Application Authors
+
+### Who they are
+
+Application Authors build **applications** using Comity.
+
+They:
+
+- Assemble modules
+- Configure the kernel
+- Choose adapters (HTTP, runtime, platform)
+- Own business logic
+
+---
+
+### What they are allowed to do
+
+Application Authors MAY:
+
+- Instantiate the kernel
+- Register modules
+- Configure module options
+- Listen to lifecycle events
+- Provide adapters (HTTP servers, runtimes)
+
+Application Authors SHOULD:
+
+- Treat modules as black boxes
+- Rely only on documented public APIs
+- Avoid coupling between modules
+
+---
+
+### What they MUST NOT do
+
+Application Authors MUST NOT:
+
+- Reach into module internals
+- Call undocumented lifecycle hooks
+- Depend on internal types or symbols
+- Mutate kernel or module state directly
+
+---
+
+## 3. Module Authors
+
+### Who they are
+
+Module Authors build **reusable functionality** meant to be consumed by applications or other modules.
+
+Examples:
+
+- `@comity/http`
+- `@comity/auth`
+- `@comity/hydration`
+
+---
+
+### What they are allowed to do
+
+Module Authors MAY:
+
+- Register hooks into the kernel lifecycle
+- Emit domain-specific events
+- Register services in the DI container
+- Depend on `@comity/primitives`
+- Depend on `@comity/kernel`
+
+Module Authors SHOULD:
+
+- Declare explicit dependencies
+- Declare incompatibilities
+- Be deterministic and side-effect aware
+
+---
+
+### What they MUST NOT do
+
+Module Authors MUST NOT:
+
+- Instantiate the kernel
+- Control application startup or shutdown
+- Assume the presence of other modules
+- Depend on adapters (HTTP frameworks, runtimes)
+- Perform I/O at import time
+
+---
+
+## 4. Module Metadata Contract
+
+Every module MUST export a **module descriptor**.
+
+Example:
+
+```ts
+import type { ModuleMeta } from "@comity/composition/setup";
+
+import { success } from "@comity/primitives/result";
+
+export const module: ModuleMeta = {
+  name: "@comity/http",
+  version: "0.9.0",
+
+  dependsOn: {
+    "@comity/kernel": { version: "^0.9.0" },
+  },
+  incompatibleWith: [],
+
+  setup: async (ctx, options) => {
+    // CONFIGURE phase (reverse dependency order): validate options and
+    // register services, hooks and event listeners declaratively.
+
+    ctx.services.define(TOKEN, () => facade);
+
+    return success(async () => {
+      // INITIALIZE phase (forward dependency order): resolve services,
+      // execute hooks and emit events.
+    });
+  },
+};
+
+export default module;
+```
+
+---
+
+## 5. Setup Semantics
+
+- `setup(ctx, options)` is executed during the CONFIGURE phase of `load`, in reverse dependency order
+- `setup` MUST be pure (no side effects outside kernel context)
+- `setup` MAY register:
+  - hooks
+  - services
+  - event listeners
+- `setup` MUST NOT resolve services, execute hooks, or emit events; these are only allowed after the kernel is sealed, during the INITIALIZE phase
+- `setup` returns a `Result` containing the module's init function, executed during the INITIALIZE phase in forward dependency order
+- the init function MAY resolve services, execute hooks, and emit events
+
+`setup` MUST NOT:
+
+- start servers
+- access environment globals
+- assume runtime specifics
+
+---
+
+## 6. Dependency Rules
+
+Modules MUST:
+
+- Explicitly declare dependencies
+- Explicitly declare incompatibilities
+
+Modules MUST NOT:
+
+- Rely on implicit load order
+- Access services from undeclared dependencies
+
+---
+
+## 7. Public vs Internal APIs
+
+Modules MUST clearly separate:
+
+- **Public API** → documented, stable
+- **Internal API** → undocumented, unstable
+
+Only Public APIs may be used by:
+
+- Application Authors
+- Other Module Authors
+
+Internal APIs may change without notice.
+
+---
+
+## 8. Events & Hooks in Modules
+
+Modules MAY:
+
+- Emit events to signal behavior
+- Register hooks to participate in execution
+
+Modules MUST:
+
+- Treat events as optional
+- Treat hooks as contractual
+
+A module MUST continue to function correctly even if no one listens to its events.
+
+---
+
+## 9. Stability Contract
+
+Once published:
+
+- Module public APIs are stable by default
+- Lifecycle hooks are stable APIs
+- Breaking changes MUST be versioned
+
+
+---
+
+# 10. Module Promotion Criteria
+
+This section defines when an Extension should be promoted to a Core Module.
+
+Promotion is rare. Stability is required.
+
+## 10.1 Promotion Requirements
+
+An Extension may be promoted only if:
+
+1. It is used across multiple production systems
+2. Its abstraction is stable
+3. It does not depend on a specific framework
+4. It defines a reusable contract
+5. It does not introduce policy into Kernel
+
+## 10.2 What Cannot Be Promoted
+
+The following must remain Extensions:
+
+- Rate limiting policies
+- Circuit breaker strategies
+- Vendor-specific tracing
+- Observability implementations
+
+These are operational concerns.
+
+## 10.3 Promotion Process
+
+Before promotion:
+
+- API must be versioned
+- Error model must comply with standards
+- Dependency graph must remain acyclic
+- Documentation must be complete
+
+Promotion requires architectural review.
+
+## 10.4 Core Qualification Checklist
+
+A module qualifies as Core only if:
+
+- It defines contracts, not policy
+- It remains infrastructure-agnostic
+- It increases replaceability
+- It reduces duplication across projects
+
+---
+
+## Final Principle
+
+Core modules define abstraction.  
+Extensions define policy.  
+Promotion happens when abstraction becomes universal.

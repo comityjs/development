@@ -1,0 +1,77 @@
+rules:
+  - id: comity-core-no-process-env
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Core Modules MUST NOT read `process.env` directly — environment access
+      belongs in adapters. Inject configuration via composition facades.
+        - architecture-validation.md §4
+        - configuration.md
+    pattern: process.env[$KEY]
+    paths:
+      include:
+        - "**/packages/**/src/**/*.ts"
+      exclude:
+        - "**/packages/*/adapters/**"
+        - "**/node_modules/**"
+    metadata:
+      category: comity-architecture
+      standard: configuration.md
+
+  - id: comity-core-no-fs
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Core Modules MUST NOT import Node's `fs` API. File system access belongs
+      in adapters.
+        - architecture-validation.md §4
+        - adapters.md §11
+    pattern: import { ... } from "node:fs"
+    paths:
+      include:
+        - "**/packages/**/src/**/*.ts"
+      exclude:
+        - "**/packages/*/adapters/**"
+        - "**/node_modules/**"
+    metadata:
+      category: comity-architecture
+      standard: adapters.md
+      section: 11
+
+  - id: comity-core-no-fs-promises
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Core Modules MUST NOT import `node:fs/promises`. File system access belongs
+      in adapters.
+        - architecture-validation.md §4
+        - adapters.md §11
+    pattern: import { ... } from "node:fs/promises"
+    paths:
+      include:
+        - "**/packages/**/src/**/*.ts"
+      exclude:
+        - "**/packages/*/adapters/**"
+        - "**/node_modules/**"
+    metadata:
+      category: comity-architecture
+      standard: adapters.md
+      section: 11
+
+  - id: comity-no-console-log
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Core Modules MUST NOT use `console.log` for telemetry. Use the framework's
+      logger abstraction.
+        - coding.md
+    pattern: console.log(...$ARGS)
+    paths:
+      include:
+        - "**/packages/**/src/**/*.ts"
+      exclude:
+        - "**/packages/*/adapters/**"
+        - "**/node_modules/**"
+    metadata:
+      category: comity-architecture
+      standard: coding.md

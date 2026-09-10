@@ -1,0 +1,56 @@
+rules:
+  - id: comity-value-object-must-be-readonly
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Value objects MUST be immutable. All fields SHOULD be `readonly`.
+        - domain-modeling.md
+    pattern: |
+      class $NAME {
+        ...
+        constructor(...) {
+          ...
+          this.$F = $V;
+          ...
+        }
+      }
+    pattern-not: |
+      class $NAME {
+        ...
+        constructor(...) {
+          ...
+          this.$F: readonly $T = $V;
+          ...
+        }
+      }
+    paths:
+      include:
+        - "**/packages/**/src/domain/**/*.ts"
+      exclude:
+        - "**/node_modules/**"
+    metadata:
+      category: comity-domain-modeling
+      standard: domain-modeling.md
+
+  - id: comity-entity-must-emit-events
+    languages: [typescript]
+    severity: INFO
+    message: |
+      Domain entities SHOULD expose a typed event surface via the `@comity/primitives/events`
+      primitive, not raw EventEmitter.
+        - events.md
+    pattern: |
+      class $NAME {
+        ...
+        new EventEmitter();
+        ...
+      }
+    paths:
+      include:
+        - "**/packages/**/src/domain/**/*.ts"
+        - "**/packages/**/src/core/**/*.ts"
+      exclude:
+        - "**/node_modules/**"
+    metadata:
+      category: comity-events
+      standard: events.md

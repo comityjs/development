@@ -1,0 +1,42 @@
+rules:
+  - id: comity-no-static-state-in-core
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Core Modules MUST NOT use static class state. Composition owns wiring;
+      static state in Core breaks testability.
+        - architecture-principles.md
+    pattern: |
+      class $NAME {
+        ...
+        static $F: $T = $V;
+        ...
+      }
+    paths:
+      include:
+        - "**/packages/**/src/**/*.ts"
+      exclude:
+        - "**/packages/*/adapters/**"
+        - "**/node_modules/**"
+    metadata:
+      category: comity-architecture
+      standard: architecture-principles.md
+
+  - id: comity-no-singleton-instance
+    languages: [typescript]
+    severity: WARNING
+    message: |
+      Comity avoids singletons. Provide composition facades via the kernel's
+      `composition` module instead.
+        - architecture-principles.md
+    pattern: |
+      export const $NAME = new $CLASS(...$ARGS);
+    paths:
+      include:
+        - "**/packages/**/src/index.ts"
+        - "**/packages/**/src/contracts/index.ts"
+      exclude:
+        - "**/node_modules/**"
+    metadata:
+      category: comity-architecture
+      standard: architecture-principles.md

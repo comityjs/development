@@ -1,0 +1,16 @@
+{
+  "repository": {
+    "name": "development",
+    "type": "development"
+  },
+  "packages": {
+    "roots": ["packages"]
+  },
+  "validation": {
+    "rules": {},
+    "exceptions": {
+      "dependencyEdges": [],
+      "layerOverrides": []
+    }
+  }
+}

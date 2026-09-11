@@ -35,12 +35,11 @@ jobs:
 
       - name: Release
         id: changesets
-        uses: changesets/action@v2
+        uses: changesets/action@v1
         with:
-          version-script: pnpm run version
-          publish-script: pnpm run release
+          version: pnpm run version
+          publish: pnpm run release
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          create-github-releases: true
-          push-git-tags: true
+          createGithubReleases: true
         env:
-          COMITY_NPM_TOKEN: ${{ secrets.COMITY_NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.COMITY_NPM_TOKEN }}

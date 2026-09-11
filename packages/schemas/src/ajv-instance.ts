@@ -13,6 +13,8 @@ export function createAjvInstance(): Ajv {
     strictTypes: false,
     verbose: true,
   });
+
   addFormats(ajv);
+
   return ajv;
 }

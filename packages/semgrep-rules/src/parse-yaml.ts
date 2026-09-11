@@ -28,12 +28,14 @@ export function parseSemgrepYaml(text: string): ParsedSemgrepRule[] {
     /^[ \t]{2}- id:\s*(.+?)\n((?:^(?![ \t]{2}- id:|rules:|---).*\n?)*)/gm;
   const rules: ParsedSemgrepRule[] = [];
   let match: RegExpExecArray | null;
+
   while ((match = ruleBlockRe.exec(text)) !== null) {
     const id = (match[1] ?? "").trim();
     const body = match[2] ?? "";
     const severityMatch = body.match(/^\s*severity:\s*(.+)$/m);
     const languagesMatch = body.match(/languages:\s*\[(.+?)\]/m);
     const messageMatch = body.match(/message:\s*\|?\s*\n((?:[ \t]+.+\n?)*)/m);
+
     rules.push({
       id,
       severity: severityMatch?.[1]?.trim() ?? null,
@@ -42,5 +44,6 @@ export function parseSemgrepYaml(text: string): ParsedSemgrepRule[] {
       raw: `  - id: ${id}\n${body}`,
     });
   }
+
   return rules;
 }

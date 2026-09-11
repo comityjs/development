@@ -12,9 +12,7 @@ export {
   RUNTIME_LAYERS,
   VALID_LAYERS,
 } from "./constants.js";
-export {
-  adr008CoreExceptionRegister,
-} from "./schemas/adr-008-register-data.js";
+export { adr008CoreExceptionRegister } from "./schemas/adr-008-register-data.js";
 export {
   adr008RegisterSchema,
   validateAdr008Register,

@@ -94,8 +94,7 @@ export const adr008CoreExceptionRegister: Adr008Register = {
       categories: ["capability"],
       importKind: "type-only",
       lifecycle: "approved",
-      justification:
-        "Taxonomy models reference MediaModel for category image.",
+      justification: "Taxonomy models reference MediaModel for category image.",
       adrReference: "ADR-008 — Dependency Register, Capability Exceptions",
     },
     {
@@ -183,7 +182,8 @@ export const adr008CoreExceptionRegister: Adr008Register = {
       lifecycle: "deprecated",
       justification:
         "Router contracts reference HttpContext, HttpHandler, HttpMethod. Compatibility exception; extraction candidate.",
-      adrReference: "ADR-008 — Dependency Register, Infrastructure Contract Exceptions",
+      adrReference:
+        "ADR-008 — Dependency Register, Infrastructure Contract Exceptions",
     },
     {
       from: "@comity/payment",

@@ -10,12 +10,16 @@
     "type-check": "pnpm -r --filter=./packages/* exec tsc -p tsconfig.json --noEmit",
     "test": "pnpm -r --filter=./packages/* run test",
     "self-validate": "pnpm build && node packages/validate/dist/bin/comity-validate.js --repo .",
-    "validate": "pnpm type-check && pnpm test && pnpm self-validate"
+    "validate": "pnpm type-check && pnpm test && pnpm self-validate",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "workspaces": [
     "packages/*"
   ],
   "devDependencies": {
+    "@changesets/cli": "^2.31.1",
     "@vitest/coverage-v8": "^4.1.11",
     "vitest": "^4.1.11"
   }

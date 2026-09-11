@@ -8,6 +8,11 @@
   "comity": {
     "layer": "dev-tooling"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/comityjs/development.git",
+    "directory": "packages/eslint-plugin"
+  },
   "engines": {
     "node": ">=24.0.0"
   },

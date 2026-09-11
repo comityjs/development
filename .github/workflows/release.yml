@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Release
+        id: changesets
+        uses: changesets/action@v2
+        with:
+          version-script: pnpm run version
+          publish-script: pnpm run release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          create-github-releases: true
+          push-git-tags: true
+        env:
+          COMITY_NPM_TOKEN: ${{ secrets.COMITY_NPM_TOKEN }}

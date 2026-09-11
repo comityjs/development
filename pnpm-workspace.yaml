@@ -9,4 +9,4 @@ publicHoistPattern:
   - "@vitest/*"
 autoInstallPeers: true
 strictPeerDependencies: false
-preferFrozenLockfile: false
+preferFrozenLockfile: true

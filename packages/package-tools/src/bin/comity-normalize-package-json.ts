@@ -51,11 +51,20 @@ const CANONICAL_TOP_LEVEL_ORDER = [
   "devDependencies",
 ];
 
-const CANONICAL_SCRIPTS_ORDER = ["build", "prepublishOnly", "dev", "test", "type-check", "lint"];
+const CANONICAL_SCRIPTS_ORDER = [
+  "build",
+  "prepublishOnly",
+  "dev",
+  "test",
+  "type-check",
+  "lint",
+];
 
 const CANONICAL_KEYWORD_PRIORITY = ["comity", "comityjs"];
 
-function sortDependencies(deps: Record<string, string> | undefined): Record<string, string> {
+function sortDependencies(
+  deps: Record<string, string> | undefined,
+): Record<string, string> {
   if (!deps || typeof deps !== "object") return {};
 
   const comity: Record<string, string> = {};
@@ -73,7 +82,9 @@ function sortDependencies(deps: Record<string, string> | undefined): Record<stri
   }
 
   const sortObj = (obj: Record<string, string>) =>
-    Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)));
+    Object.fromEntries(
+      Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)),
+    );
 
   return { ...sortObj(comity), ...sortObj(scoped), ...sortObj(unscoped) };
 }
@@ -96,7 +107,9 @@ function sortKeywords(keywords: string[] | undefined): string[] {
   return [...priorityKeywords.sort(), ...otherKeywords.sort()];
 }
 
-function sortExports(exports: Record<string, unknown> | undefined): Record<string, unknown> {
+function sortExports(
+  exports: Record<string, unknown> | undefined,
+): Record<string, unknown> {
   if (!exports || typeof exports !== "object") return {};
 
   const result: Record<string, unknown> = {};
@@ -139,7 +152,9 @@ function sortExports(exports: Record<string, unknown> | undefined): Record<strin
   return result;
 }
 
-function sortTypesVersions(typesVersions: Record<string, Record<string, string>> | undefined): Record<string, Record<string, string>> {
+function sortTypesVersions(
+  typesVersions: Record<string, Record<string, string>> | undefined,
+): Record<string, Record<string, string>> {
   if (!typesVersions || typeof typesVersions !== "object") return {};
 
   const result: Record<string, Record<string, string>> = {};
@@ -147,7 +162,7 @@ function sortTypesVersions(typesVersions: Record<string, Record<string, string>>
   for (const [version, mapping] of Object.entries(typesVersions)) {
     if (mapping && typeof mapping === "object") {
       result[version] = Object.fromEntries(
-        Object.entries(mapping).sort(([a], [b]) => a.localeCompare(b))
+        Object.entries(mapping).sort(([a], [b]) => a.localeCompare(b)),
       );
     }
   }
@@ -155,7 +170,9 @@ function sortTypesVersions(typesVersions: Record<string, Record<string, string>>
   return result;
 }
 
-function sortScripts(scripts: Record<string, string> | undefined): Record<string, string> {
+function sortScripts(
+  scripts: Record<string, string> | undefined,
+): Record<string, string> {
   if (!scripts || typeof scripts !== "object") return {};
 
   const result: Record<string, string> = {};
@@ -175,7 +192,9 @@ function sortScripts(scripts: Record<string, string> | undefined): Record<string
   return result;
 }
 
-function normalizePackageJson(pkgJson: Record<string, unknown>): Record<string, unknown> {
+function normalizePackageJson(
+  pkgJson: Record<string, unknown>,
+): Record<string, unknown> {
   const normalized: Record<string, unknown> = {};
 
   for (const key of CANONICAL_TOP_LEVEL_ORDER) {
@@ -183,7 +202,12 @@ function normalizePackageJson(pkgJson: Record<string, unknown>): Record<string, 
       let value = pkgJson[key];
 
       if (
-        ["peerDependencies", "dependencies", "optionalDependencies", "devDependencies"].includes(key)
+        [
+          "peerDependencies",
+          "dependencies",
+          "optionalDependencies",
+          "devDependencies",
+        ].includes(key)
       ) {
         value = sortDependencies(value as Record<string, string>);
       } else if (key === "keywords") {
@@ -191,7 +215,9 @@ function normalizePackageJson(pkgJson: Record<string, unknown>): Record<string, 
       } else if (key === "exports") {
         value = sortExports(value as Record<string, unknown>);
       } else if (key === "typesVersions") {
-        value = sortTypesVersions(value as Record<string, Record<string, string>>);
+        value = sortTypesVersions(
+          value as Record<string, Record<string, string>>,
+        );
       } else if (key === "scripts") {
         value = sortScripts(value as Record<string, string>);
       }
@@ -209,12 +235,17 @@ function normalizePackageJson(pkgJson: Record<string, unknown>): Record<string, 
   return normalized;
 }
 
-async function readPackageJson(pkgPath: string): Promise<Record<string, unknown>> {
+async function readPackageJson(
+  pkgPath: string,
+): Promise<Record<string, unknown>> {
   const content = await readFile(pkgPath, "utf8");
   return JSON.parse(content);
 }
 
-async function writePackageJson(pkgPath: string, pkgJson: Record<string, unknown>): Promise<void> {
+async function writePackageJson(
+  pkgPath: string,
+  pkgJson: Record<string, unknown>,
+): Promise<void> {
   const content = JSON.stringify(pkgJson, null, 2) + "\n";
   await writeFile(pkgPath, content, "utf8");
 }
@@ -225,7 +256,10 @@ interface PackageJsonInfo {
   json: Record<string, unknown>;
 }
 
-async function findPackageJsons(packagesDir: string, packagePattern: string): Promise<PackageJsonInfo[]> {
+async function findPackageJsons(
+  packagesDir: string,
+  packagePattern: string,
+): Promise<PackageJsonInfo[]> {
   const packageJsons: PackageJsonInfo[] = [];
 
   let entries;
@@ -303,7 +337,10 @@ async function main(): Promise<void> {
 
   const resolvedPackagesDir = resolve(repoRoot, packagesDir);
 
-  const packageJsons = await findPackageJsons(resolvedPackagesDir, packagePattern);
+  const packageJsons = await findPackageJsons(
+    resolvedPackagesDir,
+    packagePattern,
+  );
   let hasChanges = false;
   const changedFiles: string[] = [];
 
@@ -327,7 +364,9 @@ async function main(): Promise<void> {
 
   if (checkMode) {
     if (hasChanges) {
-      console.log(`\n${changedFiles.length} package.json file(s) would be changed:`);
+      console.log(
+        `\n${changedFiles.length} package.json file(s) would be changed:`,
+      );
       for (const name of changedFiles) {
         console.log(`  - ${name}`);
       }

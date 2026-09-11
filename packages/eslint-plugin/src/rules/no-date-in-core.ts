@@ -31,10 +31,7 @@ const TELEMETRY_ALLOWLIST = new Set([
 ]);
 
 // Allowlist for specific property access patterns that are legitimate telemetry
-const TELEMETRY_PROPERTY_ALLOWLIST = new Set([
-  "performance.now",
-  "Date.now",
-]);
+const TELEMETRY_PROPERTY_ALLOWLIST = new Set(["performance.now", "Date.now"]);
 
 const messages = {
   forbiddenGlobal:
@@ -62,11 +59,16 @@ function isInCoreOrKernelPackage(filename: string): boolean {
 
 function isTelemetryAllowedPackage(filename: string): boolean {
   return Array.from(TELEMETRY_ALLOWLIST).some(
-    (pkg) => filename.includes(`/packages/${pkg.replace("@comity/", "")}/`) || filename.includes(`/community/packages/${pkg.replace("@comity/", "")}/`),
+    (pkg) =>
+      filename.includes(`/packages/${pkg.replace("@comity/", "")}/`) ||
+      filename.includes(`/community/packages/${pkg.replace("@comity/", "")}/`),
   );
 }
 
-function isTelemetryPropertyAccess(objectName: string, propertyName: string): boolean {
+function isTelemetryPropertyAccess(
+  objectName: string,
+  propertyName: string,
+): boolean {
   return TELEMETRY_PROPERTY_ALLOWLIST.has(`${objectName}.${propertyName}`);
 }
 
@@ -130,25 +132,38 @@ const rule: Rule = {
             node.parent.type === "MemberExpression")
         ) {
           // Allow telemetry patterns in allowlisted packages
-          if (allowTelemetry && isTelemetryPropertyAccess(node.parent.object?.name ?? "", node.name)) {
+          if (
+            allowTelemetry &&
+            isTelemetryPropertyAccess(node.parent.object?.name ?? "", node.name)
+          ) {
             return;
           }
 
           // Allow Date.now() and performance.now() in telemetry allowlisted packages
           if (
             allowTelemetry &&
-            ((node.name === "Date" && node.parent.type === "MemberExpression" && node.parent.property?.name === "now") ||
-              (node.name === "performance" && node.parent.type === "MemberExpression" && node.parent.property?.name === "now"))
+            ((node.name === "Date" &&
+              node.parent.type === "MemberExpression" &&
+              node.parent.property?.name === "now") ||
+              (node.name === "performance" &&
+                node.parent.type === "MemberExpression" &&
+                node.parent.property?.name === "now"))
           ) {
             return;
           }
 
           // Also handle optional chaining: window?.performance?.now()
           // Walk up the ancestor chain to find a MemberExpression with property 'now'
-          if (allowTelemetry && (node.name === "Date" || node.name === "performance")) {
+          if (
+            allowTelemetry &&
+            (node.name === "Date" || node.name === "performance")
+          ) {
             let current = node.parent;
             while (current) {
-              if (current.type === "MemberExpression" && current.property?.name === "now") {
+              if (
+                current.type === "MemberExpression" &&
+                current.property?.name === "now"
+              ) {
                 return;
               }
               if (current.type === "ChainExpression") {

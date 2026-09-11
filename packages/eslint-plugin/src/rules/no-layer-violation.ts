@@ -57,22 +57,59 @@ function inferLayerFromFilename(filename: string): string | null {
   if (filename.includes("/packages/")) {
     // Check for core packages
     const corePackages = [
-      "http", "router", "html", "hydration", "seo", "content", "media", "search",
-      "cache", "auth", "catalog", "customer", "inventory", "order", "payment",
-      "pricing", "storefront", "taxonomy", "validation", "address", "geography",
-      "identity", "organization", "acl", "auth-tokens", "graphql-builder",
-      "graphql-client", "i18n", "sql", "storage"
+      "http",
+      "router",
+      "html",
+      "hydration",
+      "seo",
+      "content",
+      "media",
+      "search",
+      "cache",
+      "auth",
+      "catalog",
+      "customer",
+      "inventory",
+      "order",
+      "payment",
+      "pricing",
+      "storefront",
+      "taxonomy",
+      "validation",
+      "address",
+      "geography",
+      "identity",
+      "organization",
+      "acl",
+      "auth-tokens",
+      "graphql-builder",
+      "graphql-client",
+      "i18n",
+      "sql",
+      "storage",
     ];
     for (const pkg of corePackages) {
       if (filename.includes(`/packages/${pkg}/`)) return "core";
     }
     // Check for technology adapters
     const adapterPackages = [
-      "html-preact", "html-react", "hydration-preact", "hydration-react",
-      "http-hono", "http-fetch", "router-path-to-regexp",
-      "acl-casl", "auth-jose", "cache-kv", "cache-redis",
-      "cli-commander", "graphql-client-fetch", "graphql-client-ws",
-      "i18n-typesafe", "sql-kysely", "validation-zod"
+      "html-preact",
+      "html-react",
+      "hydration-preact",
+      "hydration-react",
+      "http-hono",
+      "http-fetch",
+      "router-path-to-regexp",
+      "acl-casl",
+      "auth-jose",
+      "cache-kv",
+      "cache-redis",
+      "cli-commander",
+      "graphql-client-fetch",
+      "graphql-client-ws",
+      "i18n-typesafe",
+      "sql-kysely",
+      "validation-zod",
     ];
     for (const pkg of adapterPackages) {
       if (filename.includes(`/packages/${pkg}/`)) return "technology-adapter";
@@ -127,7 +164,9 @@ const rule: Rule = {
     const sourceName = opts.sourceName ?? null;
 
     // Fallback: infer source layer from filename if sourceName not provided
-    let sourceLayer = sourceName ? classification[sourceName] : inferLayerFromFilename(context.filename ?? context.getFilename());
+    let sourceLayer = sourceName
+      ? classification[sourceName]
+      : inferLayerFromFilename(context.filename ?? context.getFilename());
     if (!sourceLayer) return {};
 
     const profile = LAYER_PROFILES[sourceLayer];

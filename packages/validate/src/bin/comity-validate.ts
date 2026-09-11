@@ -27,8 +27,8 @@
 
 import { resolve } from "node:path";
 import { ExitCode } from "../exit-codes.js";
-import { runValidation } from "../run.js";
 import { formatSummary, formatViolations } from "../format.js";
+import { runValidation } from "../run.js";
 
 interface ParsedArgs {
   root: string;
@@ -46,6 +46,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+
     if (arg === "--help" || arg === "-h") args.help = true;
     else if (arg === "--verbose" || arg === "-v") args.verbose = true;
     else if (arg === "--repo") args.root = resolve(argv[++i] ?? "");
@@ -55,6 +56,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     else if (arg?.startsWith("--only="))
       args.only = arg.slice("--only=".length);
   }
+
   return args;
 }
 
@@ -92,14 +94,18 @@ async function main(): Promise<void> {
       verbose: args.verbose,
       only: args.only,
     });
+
     console.log(formatSummary(result));
+
     if (!result.passed && args.verbose) {
       console.log("");
       console.log(formatViolations(result.violations));
     }
+
     process.exit(result.passed ? ExitCode.PASS : ExitCode.FAIL);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+
     console.error("comity-validate: configuration error:", message);
     process.exit(ExitCode.CONFIG_ERROR);
   }

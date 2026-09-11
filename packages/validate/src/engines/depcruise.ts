@@ -44,7 +44,8 @@ export function runDepcruise(repo: Repository, binDir: string): EngineResult {
   // Build target paths from discovered package directories
   // Use the repository's actual package directories, not a hardcoded "packages"
   const packageDirs = repo.packages.map((p) => resolve(repo.root, p.path));
-  const targets = packageDirs.length > 0 ? packageDirs : [resolve(repo.root, "packages")];
+  const targets =
+    packageDirs.length > 0 ? packageDirs : [resolve(repo.root, "packages")];
 
   // Run depcruise from the validate package's directory so it can resolve
   // the shared @comity-dev/dependency-rules via workspace node_modules.

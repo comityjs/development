@@ -8,6 +8,11 @@
   "comity": {
     "layer": "dev-tooling"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/comityjs/development.git",
+    "directory": "packages/semgrep-rules"
+  },
   "engines": {
     "node": ">=24.0.0"
   },

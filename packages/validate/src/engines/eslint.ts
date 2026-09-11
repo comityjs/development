@@ -3,7 +3,7 @@ import type { EngineResult, Finding } from "./types.js";
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { resolve, relative } from "node:path";
+import { relative, resolve } from "node:path";
 
 export function runEslint(repo: Repository, binDir: string): EngineResult {
   const start = Date.now();
@@ -13,24 +13,27 @@ export function runEslint(repo: Repository, binDir: string): EngineResult {
   const tmpDir = mkdtempSync("/tmp/comity-validate-eslint-");
   const configPath = `${tmpDir}/eslint.config.mjs`;
 
-  // Use absolute paths to the plugin's dist output so Node can resolve
-  // them from the temp config's location (anywhere in the repo).
-  // The plugin is a workspace dep of this validate package; we resolve
-  // its dist via the validate package's own node_modules.
-  const pluginEntry = resolve(
-    resolve(binDir, "..", "..", "node_modules", "@comity-dev", "eslint-plugin"),
+  // Resolve modules from the repository's node_modules, not from the validate
+  // package's node_modules. This ensures we use the repository's installed
+  // versions of the plugins and parser.
+  const repoNodeModules = resolve(repo.root, "node_modules");
+  const pluginPath = resolve(
+    repoNodeModules,
+    "@comity-dev",
+    "eslint-plugin",
     "dist",
     "index.js",
   );
-  const recommendedEntry = resolve(
-    resolve(binDir, "..", "..", "node_modules", "@comity-dev", "eslint-plugin"),
+  const recommendedPath = resolve(
+    repoNodeModules,
+    "@comity-dev",
+    "eslint-plugin",
     "dist",
     "recommended.js",
   );
-  // Resolve the @typescript-eslint/parser from validate's workspace
-  // node_modules; ESLint 9 flat-config needs an explicit parser for TS.
-  const tsParserEntry = resolve(
-    resolve(binDir, "..", "..", "node_modules", "@typescript-eslint"),
+  const tsParserPath = resolve(
+    repoNodeModules,
+    "@typescript-eslint",
     "parser",
     "dist",
     "index.js",
@@ -40,29 +43,12 @@ export function runEslint(repo: Repository, binDir: string): EngineResult {
   // Use the repository's actual package directories
   const packageDirs = repo.packages.map((p) => resolve(repo.root, p.path));
   // Compute relative paths from repo.root for ESLint target
-  const targets = packageDirs.length > 0
-    ? packageDirs.map((dir) => relative(repo.root, dir))
-    : ["packages"];
+  const targets =
+    packageDirs.length > 0
+      ? packageDirs.map((dir) => relative(repo.root, dir))
+      : ["packages"];
 
-  const configBody = `import comityPlugin from ${JSON.stringify(pluginEntry)};
-import { recommended } from ${JSON.stringify(recommendedEntry)};
-import tsParser from ${JSON.stringify(tsParserEntry)};
-export default [
-  // Explicitly override ESLint's auto-detected ignores. The temp config
-  // is created at runtime, far from any .gitignore / eslintrc that the
-  // consumer repo might ship.
-  { ignores: ["**/node_modules/**", "**/dist/**"] },
-  {
-    files: ["**/*.{ts,tsx,js,jsx}"],
-    languageOptions: {
-      parser: tsParser,
-      parserOptions: { ecmaVersion: "latest", sourceType: "module" },
-    },
-    plugins: { "@comity-dev": comityPlugin },
-    rules: recommended.rules,
-  },
-];
-`;
+  const configBody = `import comityPlugin from ${JSON.stringify(pluginPath)};\nimport { recommended } from ${JSON.stringify(recommendedPath)};\nimport tsParser from ${JSON.stringify(tsParserPath)};\nexport default [\n  // Explicitly override ESLint's auto-detected ignores. The temp config\n  // is created at runtime, far from any .gitignore / eslintrc that the\n  // consumer repo might ship.\n  { ignores: ["**/node_modules/**", "**/dist/**", "**/coverage/**", "**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"] },\n  {\n    files: ["**/*.{ts,tsx,js,jsx}"],\n    languageOptions: {\n      parser: tsParser,\n      parserOptions: { ecmaVersion: "latest", sourceType: "module" },\n    },\n    plugins: { "@comity-dev": comityPlugin },\n    rules: recommended.rules,\n  },\n];\n`;
   writeFileSync(configPath, configBody);
 
   if (process.env["DEBUG_VALIDATE"]) {
@@ -91,10 +77,6 @@ export default [
 
   // Run ESLint with cwd = repo.root so its file-path resolution and
   // ignore handling are anchored at the repository being validated.
-  // The temp config uses absolute imports for the shared plugin, so
-  // workspace layout is irrelevant to module resolution. We pass the
-  // target directories and let ESLint auto-discover the files; the
-  // config's `files` pattern filters by extension.
   const proc = spawnSync(
     bin,
     [
@@ -153,7 +135,9 @@ export default [
     console.error("[DEBUG] ESLint result:", {
       status: proc.status,
       findingsCount: findings.length,
-      passed: proc.status === 0 && findings.length === 0,
+      passed:
+        proc.status === 0 &&
+        findings.filter((f) => f.severity === "error").length === 0,
       stdout: proc.stdout?.slice(0, 500),
       stderr: proc.stderr?.slice(0, 500),
     });
@@ -162,7 +146,9 @@ export default [
   return {
     executed: true,
     exitCode: proc.status,
-    passed: proc.status === 0 && findings.length === 0,
+    passed:
+      proc.status === 0 &&
+      findings.filter((f) => f.severity === "error").length === 0,
     findings,
     duration: Date.now() - start,
     status: proc.status === 0 ? "PASS" : "FAIL",

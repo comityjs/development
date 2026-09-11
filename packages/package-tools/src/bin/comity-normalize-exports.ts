@@ -7,22 +7,27 @@
  *   comity-normalize-exports [options]
  *
  * Options:
- *   --help, -h     Show this help
- *   --check        Check mode - exit with code 1 if changes needed
+ *   --help, -h            Show this help
+ *   --check               Check mode - exit with code 1 if changes needed
+ *   --repo-root <dir>     Repository root (default: current working directory)
  *
  * The tool processes all index.ts files in packages/ and normalizes
  * export declaration ordering (type exports first, then runtime exports,
  * both sorted alphabetically by module specifier).
  */
 
-import { readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, resolve, relative } from "node:path";
-import { fileURLToPath } from "node:url";
-import * as ts from "typescript";
+import type { ExportDeclaration, Node, SourceFile } from "typescript";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(__dirname, "..", "..", "..", ".."); // monorepo root (from dist/bin/)
-const PACKAGES_DIR = join(REPO_ROOT, "packages");
+import { realpathSync } from "node:fs";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  createSourceFile,
+  forEachChild,
+  isExportDeclaration,
+  ScriptTarget,
+} from "typescript";
 
 const EXCLUDED_DIRS = new Set([
   "node_modules",
@@ -35,18 +40,71 @@ const EXCLUDED_DIRS = new Set([
 
 const EXCLUDED_PACKAGES = new Set<string>([]);
 
-function shouldProcessFile(filePath: string): boolean {
-  const relPath = relative(REPO_ROOT, filePath);
+/**
+ * Resolve the target repository root.
+ *
+ * The normal invocation is `pnpm normalize:exports` executed from the
+ * target repository root, so `process.cwd()` is the preferred root.
+ * An explicit `--repo-root <dir>` override is accepted for tooling use.
+ *
+ * Following the established convention of the sibling
+ * `comity-normalize-package-json` CLI.
+ */
+export function resolveRepoRoot(args: string[]): string {
+  let repoRoot = process.cwd();
+  const repoRootIndex = args.indexOf("--repo-root");
+
+  if (repoRootIndex !== -1 && repoRootIndex + 1 < args.length) {
+    const val = args[repoRootIndex + 1];
+
+    if (val) repoRoot = resolve(val);
+  }
+
+  return repoRoot;
+}
+
+/**
+ * Validate that the resolved repository root contains the expected
+ * `packages/` structure. Fails explicitly instead of producing a
+ * vacuous empty result.
+ *
+ * @throws Error when the target repository does not contain a `packages/`
+ * directory or it is not a directory.
+ */
+export async function resolvePackagesDir(repoRoot: string): Promise<string> {
+  const packagesDir = resolve(repoRoot, "packages");
+  let packagesStat;
+
+  try {
+    packagesStat = await stat(packagesDir);
+  } catch {
+    throw new Error(
+      `repository target '${repoRoot}' does not contain a 'packages/' directory`,
+    );
+  }
+
+  if (!packagesStat.isDirectory()) {
+    throw new Error(`'${packagesDir}' exists but is not a directory`);
+  }
+
+  return packagesDir;
+}
+
+function shouldProcessFile(repoRoot: string, filePath: string): boolean {
+  const relPath = relative(repoRoot, filePath);
   const parts = relPath.split("/");
+
   for (const part of parts) {
     if (EXCLUDED_DIRS.has(part)) return false;
   }
+
   return true;
 }
 
-function getPackageName(filePath: string): string {
-  const relPath = relative(PACKAGES_DIR, filePath);
+function getPackageName(packagesDir: string, filePath: string): string {
+  const relPath = relative(packagesDir, filePath);
   const pkgDir = relPath.split("/")[0];
+
   return `@comity/${pkgDir}`;
 }
 
@@ -58,22 +116,30 @@ function isSetupIndex(filePath: string): boolean {
   return filePath.includes("/src/setup/index.ts");
 }
 
-async function findTypeScriptFiles(dir: string): Promise<string[]> {
+export async function findTypeScriptFiles(
+  repoRoot: string,
+  dir: string,
+): Promise<string[]> {
   const files: string[] = [];
-
   let entries;
+
   try {
     entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return files;
+  } catch (error) {
+    // A missing/unreadable packages directory is a configuration error,
+    // not an empty repository. Surface it instead of returning [].
+    throw new Error(
+      `cannot read directory '${dir}': ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   for (const entry of entries) {
     const fullPath = join(dir, entry.name);
-    if (!shouldProcessFile(fullPath)) continue;
+
+    if (!shouldProcessFile(repoRoot, fullPath)) continue;
 
     if (entry.isDirectory()) {
-      files.push(...(await findTypeScriptFiles(fullPath)));
+      files.push(...(await findTypeScriptFiles(repoRoot, fullPath)));
     } else if (entry.name === "index.ts" && fullPath.includes("/src/")) {
       files.push(fullPath);
     }
@@ -82,21 +148,23 @@ async function findTypeScriptFiles(dir: string): Promise<string[]> {
   return files;
 }
 
-function getSourceFile(filePath: string, content: string): ts.SourceFile {
-  return ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true);
+function getSourceFile(filePath: string, content: string): SourceFile {
+  return createSourceFile(filePath, content, ScriptTarget.Latest, true);
 }
 
-function getExportDeclarations(sourceFile: ts.SourceFile): ts.ExportDeclaration[] {
-  const exports: ts.ExportDeclaration[] = [];
+function getExportDeclarations(sourceFile: SourceFile): ExportDeclaration[] {
+  const exports: ExportDeclaration[] = [];
 
-  function visit(node: ts.Node): void {
-    if (ts.isExportDeclaration(node)) {
+  function visit(node: Node): void {
+    if (isExportDeclaration(node)) {
       exports.push(node);
     }
-    ts.forEachChild(node, visit);
+
+    forEachChild(node, visit);
   }
 
   visit(sourceFile);
+
   return exports;
 }
 
@@ -106,10 +174,13 @@ interface ExportInfo {
   moduleSpecifier: string;
   start: number;
   end: number;
-  node: ts.ExportDeclaration;
+  node: ExportDeclaration;
 }
 
-function getExportInfo(exportDecl: ts.ExportDeclaration, sourceFile: ts.SourceFile): ExportInfo {
+function getExportInfo(
+  exportDecl: ExportDeclaration,
+  sourceFile: SourceFile,
+): ExportInfo {
   const text = exportDecl.getText(sourceFile);
   const isTypeOnly = exportDecl.isTypeOnly === true;
   const moduleSpecifier = exportDecl.moduleSpecifier?.getText(sourceFile) ?? "";
@@ -130,11 +201,14 @@ function getSortKey(info: ExportInfo): string {
   return info.moduleSpecifier || "zzz-local";
 }
 
-function normalizeExports(content: string, sourceFile: ts.SourceFile): string {
+function normalizeExports(content: string, sourceFile: SourceFile): string {
   const exportDecls = getExportDeclarations(sourceFile);
+
   if (exportDecls.length === 0) return content;
 
-  const exportInfos = exportDecls.map((decl) => getExportInfo(decl, sourceFile));
+  const exportInfos = exportDecls.map((decl) =>
+    getExportInfo(decl, sourceFile),
+  );
 
   const typeExports = exportInfos.filter((info) => info.isTypeOnly);
   const runtimeExports = exportInfos.filter((info) => !info.isTypeOnly);
@@ -152,7 +226,9 @@ function normalizeExports(content: string, sourceFile: ts.SourceFile): string {
 
   const lines = content.split(/\r?\n/);
 
-  const startLine = sourceFile.getLineAndCharacterOfPosition(firstExport.start).line;
+  const startLine = sourceFile.getLineAndCharacterOfPosition(
+    firstExport.start,
+  ).line;
   const endLine = sourceFile.getLineAndCharacterOfPosition(lastExport.end).line;
 
   const beforeExports = lines.slice(0, startLine);
@@ -172,7 +248,11 @@ function normalizeExports(content: string, sourceFile: ts.SourceFile): string {
     newExportLines.push(...runtimeExports.map((info) => info.text));
   }
 
-  const newContent = [...beforeExports, ...newExportLines, ...afterExports].join("\n");
+  const newContent = [
+    ...beforeExports,
+    ...newExportLines,
+    ...afterExports,
+  ].join("\n");
 
   return newContent;
 }
@@ -189,7 +269,12 @@ async function processFile(filePath: string): Promise<ProcessResult> {
   const sourceFile = getSourceFile(filePath, content);
   const newContent = normalizeExports(content, sourceFile);
 
-  return { filePath, original: content, normalized: newContent, changed: content !== newContent };
+  return {
+    filePath,
+    original: content,
+    normalized: newContent,
+    changed: content !== newContent,
+  };
 }
 
 function printHelp(): void {
@@ -199,8 +284,9 @@ Usage:
   comity-normalize-exports [options]
 
 Options:
-  --help, -h     Show this help
-  --check        Check mode - exit with code 1 if changes needed
+  --help, -h            Show this help
+  --check               Check mode - exit with code 1 if changes needed
+  --repo-root <dir>     Repository root (default: current working directory)
 
 The tool processes all index.ts files in packages/ and normalizes
 export declaration ordering (type exports first, then runtime exports,
@@ -217,28 +303,34 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const files = await findTypeScriptFiles(PACKAGES_DIR);
+  const repoRoot = resolveRepoRoot(args);
+  const packagesDir = await resolvePackagesDir(repoRoot);
+  const files = await findTypeScriptFiles(repoRoot, packagesDir);
+
   console.log(`Found ${files.length} index.ts files to process`);
 
   let hasChanges = false;
   const changedFiles: { path: string; pkg: string }[] = [];
 
   for (const filePath of files) {
-    if (!shouldProcessFile(filePath)) continue;
+    if (!shouldProcessFile(repoRoot, filePath)) continue;
 
-    const pkgName = getPackageName(filePath);
+    const pkgName = getPackageName(packagesDir, filePath);
+
     if (isExcludedPackage(pkgName)) continue;
 
     const result = await processFile(filePath);
+
     if (result.changed) {
       hasChanges = true;
+
       changedFiles.push({ path: result.filePath, pkg: pkgName });
 
       if (!checkMode) {
         await writeFile(result.filePath, result.normalized, "utf8");
-        console.log(`Normalized: ${relative(REPO_ROOT, result.filePath)}`);
+        console.log(`Normalized: ${relative(repoRoot, result.filePath)}`);
       } else {
-        console.log(`Would normalize: ${relative(REPO_ROOT, result.filePath)}`);
+        console.log(`Would normalize: ${relative(repoRoot, result.filePath)}`);
       }
     }
   }
@@ -246,9 +338,11 @@ async function main(): Promise<void> {
   if (checkMode) {
     if (hasChanges) {
       console.log(`\n${changedFiles.length} file(s) would be changed:`);
+
       for (const f of changedFiles) {
-        console.log(`  - ${f.pkg}: ${relative(REPO_ROOT, f.path)}`);
+        console.log(`  - ${f.pkg}: ${relative(repoRoot, f.path)}`);
       }
+
       process.exit(1);
     } else {
       console.log("All export declarations are already normalized.");
@@ -263,7 +357,35 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+/**
+ * Returns true when this module is being executed directly by Node (as a
+ * CLI), rather than being imported by another module (e.g. tests).
+ *
+ * The comparison is made on real paths so symlinked execution (e.g. pnpm
+ * `.bin` shims, `/var` → `/private/var` on macOS) does not false-negative.
+ */
+function isDirectExecution(): boolean {
+  const entry = process.argv[1];
+
+  if (!entry) return false;
+
+  try {
+    const modulePath = realpathSync(fileURLToPath(import.meta.url));
+    const entryPath = realpathSync(entry);
+
+    return modulePath === entryPath;
+  } catch {
+    return false;
+  }
+}
+
+// Only run the CLI when executed directly; importing this module (e.g. in
+// tests) must not trigger discovery/exit.
+if (isDirectExecution()) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+
+    console.error(`comity-normalize-exports: ${message}`);
+    process.exit(1);
+  });
+}

@@ -173,9 +173,7 @@ Avoid: handles, does, has, includes, supports, is, works, allows.
 
 #### Status Section Rules
 
-- Must contain: `## Status`, a stable/experimental/draft label, review metadata
-- Date in ISO format: `YYYY-MM-DD`
-- Compliance: `Compliance: N% (Green)`
+- Must contain: `## Status` and a stable/experimental/draft label
 - Vocabulary: `Draft` (design incomplete or not ready for general usage), `Experimental` (usable, APIs may change without compatibility guarantees), `Stable` (public API compatibility guaranteed)
 - Do not infer maturity from package version numbers
 
@@ -192,7 +190,7 @@ For each README, verify:
 - ☐ `## Scope` uses `✅` and `❌` with leading verbs
 - ☐ `## Public API` describes domains, not files
 - ☐ `## Related Packages` uses em dash
-- ☐ `## Status` includes review metadata
+- ☐ `## Status` contains a stable/experimental/draft label
 - ☐ Tone is formal but accessible (no internal jargon)
 - ☐ Sections match exactly the eight mandatory ones, in order
 

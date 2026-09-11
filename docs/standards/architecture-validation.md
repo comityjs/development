@@ -225,9 +225,7 @@ Every package README MUST contain exactly these sections, in order:
 
 Rules:
 
-- `## Status` MUST contain a stable/experimental/draft label and review metadata. Vocabulary: `Draft` (design incomplete or not ready for general usage), `Experimental` (usable, APIs may change without compatibility guarantees), `Stable` (public API compatibility guaranteed).
-- Dates MUST be ISO `YYYY-MM-DD`.
-- Compliance MUST be recorded as `Compliance: N% (Green)`.
+- `## Status` MUST contain a stable/experimental/draft label. Vocabulary: `Draft` (design incomplete or not ready for general usage), `Experimental` (usable, APIs may change without compatibility guarantees), `Stable` (public API compatibility guaranteed).
 - Forbidden sections: Getting Started, Installation, Usage, Examples, API Reference, Contributing, License, and emoji headers.
 - The line `No exhaustive reference; see docs for constraints.` is mandatory in `## Public API`.
 

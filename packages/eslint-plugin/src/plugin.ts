@@ -16,6 +16,7 @@
  *   - `recommended`: the canonical Comity rule set
  *   - `RULE_IDS`: stable list of rule identifiers
  */
+import type { ESLint } from "eslint";
 
 import noCryptoInCore from "./rules/no-crypto-in-core.js";
 import noDateInCore from "./rules/no-date-in-core.js";
@@ -41,7 +42,7 @@ export const BUILTIN_RULES: BuiltinRule[] = [
   { name: "no-render-core-http-runtime", rule: noRenderCoreHttpRuntime },
 ];
 
-export const plugin: import("eslint").ESLint.Plugin = {
+export const plugin: ESLint.Plugin = {
   meta: {
     name: "@comity-dev/eslint-plugin",
     version: "0.1.0",

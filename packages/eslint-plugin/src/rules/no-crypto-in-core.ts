@@ -110,7 +110,6 @@ const rule: Rule = {
         }
       },
       ImportExpression(node: any) {
-        // dynamic import()
         if (
           node.source.type === "Literal" &&
           typeof node.source.value === "string" &&

@@ -1,6 +1,6 @@
 {
   "name": "@comity-dev/build",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Comity build tooling for package compilation. Development tooling.",
   "type": "module",
   "private": false,

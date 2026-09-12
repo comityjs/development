@@ -1,6 +1,6 @@
 {
   "name": "@comity-dev/schemas",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reusable JSON Schema definitions for Comity package metadata, ADR-008 register, and repository configuration. Development tooling.",
   "type": "module",
   "private": false,

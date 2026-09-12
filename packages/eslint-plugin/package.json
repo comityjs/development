@@ -1,6 +1,6 @@
 {
   "name": "@comity-dev/eslint-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reusable ESLint rules for Comity source-code policy. Development tooling.",
   "type": "module",
   "private": false,

@@ -1,6 +1,6 @@
 {
   "name": "@comity-dev/validate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Thin orchestrator over Comity shared validation tooling. Development tooling.",
   "type": "module",
   "private": false,

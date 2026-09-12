@@ -1,6 +1,6 @@
 {
   "name": "@comity-dev/package-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Comity package metadata tooling (export normalization, package.json normalization). Development tooling.",
   "type": "module",
   "private": false,

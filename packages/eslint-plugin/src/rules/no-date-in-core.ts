@@ -8,7 +8,9 @@
  * Legitimate exceptions:
  * - Telemetry/timing measurements using `performance.now()` (observational, not domain logic)
  * - Timestamp generation using `Date.now()` or `Date` constructor for logging/metadata
- * - Time primitives in `@comity/primitives/time` (explicitly allowed)
+ * - Time primitives in `@comity/primitives/time` (explicitly allowed): `Date`
+ *   use under `packages/primitives/src/time/` is the sanctioned clock
+ *   boundary of the framework.
  *
  * Standard references:
  *   - layering-policy.md §6 (determinism)
@@ -40,29 +42,54 @@ const messages = {
     "Non-deterministic '{{object}}.{{property}}' is forbidden in Core / Kernel (layering-policy.md §6).",
 };
 
+function normalizeFilename(filename: string): string {
+  return filename.replace(/\\/g, "/");
+}
+
 function isInCoreOrKernelPackage(filename: string): boolean {
+  const normalized = normalizeFilename(filename);
+
   return (
-    filename.includes("/packages/") &&
-    (filename.includes("/primitives/") ||
-      filename.includes("/kernel/") ||
-      filename.includes("/composition/") ||
-      filename.includes("/http/") ||
-      filename.includes("/router/") ||
-      filename.includes("/html/") ||
-      filename.includes("/hydration/") ||
-      filename.includes("/seo/") ||
-      filename.includes("/content/") ||
-      filename.includes("/media/") ||
-      filename.includes("/search/"))
+    normalized.includes("/packages/") &&
+    (normalized.includes("/primitives/") ||
+      normalized.includes("/kernel/") ||
+      normalized.includes("/composition/") ||
+      normalized.includes("/http/") ||
+      normalized.includes("/router/") ||
+      normalized.includes("/html/") ||
+      normalized.includes("/hydration/") ||
+      normalized.includes("/seo/") ||
+      normalized.includes("/content/") ||
+      normalized.includes("/media/") ||
+      normalized.includes("/search/"))
   );
 }
 
 function isTelemetryAllowedPackage(filename: string): boolean {
+  const normalized = normalizeFilename(filename);
+
   return Array.from(TELEMETRY_ALLOWLIST).some(
     (pkg) =>
-      filename.includes(`/packages/${pkg.replace("@comity/", "")}/`) ||
-      filename.includes(`/community/packages/${pkg.replace("@comity/", "")}/`),
+      normalized.includes(`/packages/${pkg.replace("@comity/", "")}/`) ||
+      normalized.includes(`/community/packages/${pkg.replace("@comity/", "")}/`),
   );
+}
+
+/**
+ * Returns whether the file is one of the sanctioned time primitives that
+ * own the framework's `Date` clock boundary.
+ *
+ * The exemption is deliberately path-narrow: only files under
+ * `packages/primitives/src/time/` qualify. `Date` use anywhere else in
+ * Core — including elsewhere inside `@comity/primitives` — remains
+ * forbidden.
+ *
+ * @param filename - The file under lint, in platform-native form.
+ *
+ * @returns `true` when the file is a sanctioned time primitive.
+ */
+function isTimePrimitiveFile(filename: string): boolean {
+  return normalizeFilename(filename).includes("/packages/primitives/src/time/");
 }
 
 function isTelemetryPropertyAccess(
@@ -101,12 +128,13 @@ const rule: Rule = {
       sourceName?: string;
     };
     const sourceName = opts.sourceName ?? null;
+    const filename = context.filename ?? context.getFilename();
 
     // If sourceName provided, use it for classification; otherwise fall back to filename
     const inCoreOrKernel = sourceName
       ? sourceName.startsWith("@comity/") &&
         !["@comity/cli", "@comity/graphql-builder"].includes(sourceName) // these are not core/kernel
-      : isInCoreOrKernelPackage(context.filename ?? context.getFilename());
+      : isInCoreOrKernelPackage(filename);
 
     // Disable this rule outside Core/Kernel packages
     if (!inCoreOrKernel) {
@@ -116,7 +144,10 @@ const rule: Rule = {
     // Check if this package is allowed to use telemetry patterns
     const allowTelemetry = sourceName
       ? TELEMETRY_ALLOWLIST.has(sourceName)
-      : isTelemetryAllowedPackage(context.filename ?? context.getFilename());
+      : isTelemetryAllowedPackage(filename);
+
+    // Sanctioned clock boundary: time primitives own `Date` usage.
+    const isTimePrimitive = isTimePrimitiveFile(filename);
 
     return {
       Identifier(node: any) {
@@ -131,6 +162,13 @@ const rule: Rule = {
             node.parent.type === "NewExpression" ||
             node.parent.type === "MemberExpression")
         ) {
+          // Time primitives own the `Date` clock boundary: `Date.now()` as
+          // the clock source and `new Date(ms)` for deterministic rendering
+          // are legitimate exactly here and nowhere else in Core.
+          if (node.name === "Date" && isTimePrimitive) {
+            return;
+          }
+
           // Allow telemetry patterns in allowlisted packages
           if (
             allowTelemetry &&

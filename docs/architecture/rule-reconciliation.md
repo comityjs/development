@@ -57,10 +57,11 @@ recorded.
 | A1 | technology-adapter declares implemented Core Module | adapters.md §11 / ADR-007 | JSON Schema + adapter-peers | Development | SHARED | same as L10 |
 | A2 | technology-adapter declares core as peerDependency | adapters.md §13 | adapter-peers (`ARCH-ADAPTER-PEER-001`) | Development | SHARED | `packages/validate/src/engines/adapter-peers.ts` |
 | A3 | technology-adapter depends on declared core | adapters.md §13 | adapter-peers (`ARCH-ADAPTER-PEER-002`) | Development | SHARED | same |
-| A4 | technology-adapter peerDep only allowed: core, kernel, tech-binding | adapters.md §13 | adapter-peers (`ARCH-ADAPTER-PEER-004`) | Development | SHARED | same |
+| A4 | technology-adapter peerDep only allowed: implemented core, kernel, tech-binding, or consumed Core Module declared in `dependencies` | adapters.md §13 | adapter-peers (`ARCH-ADAPTER-PEER-004`) | Development | SHARED | same |
 | A5 | technology-adapter missing/invalid `comity.implements` | adapters.md §11 | adapter-peers (`ARCH-ADAPTER-PEER-005`) | Development | SHARED | same |
-| A6 | adapter implements structural contract | adapters.md §11 | Semgrep (`comity-adapter-must-declare-implements`) | Development | SHARED | `packages/semgrep-rules/rules/adapter-contract-shape.yaml` |
+| A6 | ~~adapter implements structural contract~~ — RETIRED: no normative class-level `implements`/constructor requirement exists; the package-level relationship is enforced by authoritative metadata (L10/A1/A5) and adapter-peers | — | — (former Semgrep `comity-adapter-must-declare-implements`, removed) | Development | RETIRED | owner decision D1 |
 | A7 | adapter boundary exposes Result, not throws | adapters.md §12 | Semgrep (`comity-adapter-no-raw-error-throw`) | Development | SHARED | same |
+| A8 | technology-adapter declares every consumed Core Module as peerDependency | adapters.md §13 | adapter-peers (`ARCH-ADAPTER-PEER-003`) | Development | SHARED | `packages/validate/src/engines/adapter-peers.ts` |
 
 ## Errors (`errors.md`)
 

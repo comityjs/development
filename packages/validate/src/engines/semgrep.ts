@@ -8,9 +8,27 @@ import { relative, resolve } from "node:path";
 
 /**
  * Discover the Python interpreter that ships the `semgrep` module.
- * We try well-known absolute paths first, then fall back to PATH.
+ *
+ * Selection order:
+ * 1. `SEMGREP_PYTHON` when set to an existing path — explicit operator
+ *    configuration always wins and is never silently overridden.
+ * 2. Well-known absolute paths, then `python3` on PATH (historic default).
+ *
+ * @param env - Environment to read. Defaults to the process environment.
+ *
+ * @returns The selected interpreter path, or `null` when none is available.
+ * A set-but-missing `SEMGREP_PYTHON` also yields `null` so the caller can
+ * report it as invalid configuration rather than falling back silently.
  */
-function resolvePythonForSemgrep(): string | null {
+export function resolvePythonForSemgrep(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const explicit = env["SEMGREP_PYTHON"];
+
+  if (explicit) {
+    return existsSync(explicit) ? explicit : null;
+  }
+
   const candidates: string[] = [
     "/usr/bin/python3",
     "/usr/local/bin/python3",
@@ -21,7 +39,10 @@ function resolvePythonForSemgrep(): string | null {
     if (existsSync(c)) return c;
   }
 
-  const probe = spawnSync("which", ["python3"], { encoding: "utf8" });
+  const probe = spawnSync("which", ["python3"], {
+    encoding: "utf8",
+    env: { ...env, PATH: env["PATH"] ?? "" },
+  });
 
   if (probe.status === 0 && probe.stdout?.trim()) return probe.stdout.trim();
 
@@ -152,10 +173,15 @@ export async function runSemgrep(repo: Repository): Promise<EngineResult> {
   }
 
   // Locate the Python interpreter that ships the semgrep module.
+  // An explicit SEMGREP_PYTHON is honored as-is; a set-but-missing value
+  // is invalid configuration, never a reason to silently fall back.
   const pythonBin = resolvePythonForSemgrep();
 
   if (!pythonBin) {
     cleanup();
+
+    const explicitPython = process.env["SEMGREP_PYTHON"];
+
     return {
       executed: false,
       exitCode: null,
@@ -164,14 +190,23 @@ export async function runSemgrep(repo: Repository): Promise<EngineResult> {
       duration: Date.now() - start,
       status: "TOOL-UNAVAILABLE",
       tool: "semgrep",
-      reason: "Python interpreter not found; semgrep requires Python on PATH",
+      reason: explicitPython
+        ? `SEMGREP_PYTHON is set to "${explicitPython}" but that path does not exist; set SEMGREP_PYTHON to a Python interpreter that ships the semgrep module`
+        : "Python interpreter not found; semgrep requires Python on PATH",
     };
   }
 
   // Augment PATH so the inner Python process can find semgrep's
   // sibling `pysemgrep` script (semgrep's `subprocess.run` does an
-  // `execvp("pysemgrep")` lookup against this PATH).
+  // `execvp("pysemgrep")` lookup against this PATH). Directories of the
+  // explicitly configured SEMGREP_BIN and resolved interpreter come first
+  // so a locally installed Semgrep resolves its own sibling scripts
+  // instead of whatever happens to be on PATH.
+  const configuredDirs = [semgrepBin, pythonBin]
+    .map((p) => p.slice(0, Math.max(0, p.lastIndexOf("/"))))
+    .filter((d) => d.length > 0);
   const envPath = [
+    ...new Set(configuredDirs),
     ...candidateDirs,
     "/Users/filippo/Library/Python/3.14/bin",
     "/Users/filippo/Library/Python/3.13/bin",

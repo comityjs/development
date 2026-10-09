@@ -32,6 +32,8 @@ rules:
         - "**/packages/**/src/**/*.ts"
       exclude:
         - "**/packages/*/adapters/**"
+        - "**/*.test.ts"
+        - "**/__tests__/**"
         - "**/node_modules/**"
     metadata:
       category: comity-architecture
@@ -52,6 +54,8 @@ rules:
         - "**/packages/**/src/**/*.ts"
       exclude:
         - "**/packages/*/adapters/**"
+        - "**/*.test.ts"
+        - "**/__tests__/**"
         - "**/node_modules/**"
     metadata:
       category: comity-architecture

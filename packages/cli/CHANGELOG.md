@@ -1,5 +1,13 @@
 # @comity-dev/cli
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [52e9012]
+- Updated dependencies [a3cc823]
+  - @comity-dev/validate@0.1.2
+
 ## 0.1.2
 
 ### Patch Changes

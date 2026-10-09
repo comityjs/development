@@ -8,15 +8,18 @@ rules:
       and the contract.
         - adapters.md §11
         - ADR-007
-    pattern: |
-      class $NAME implements $I {
-        ...
-      }
-    pattern-not: |
-      class $NAME implements $I {
-        constructor(...args) { ... }
-        ...
-      }
+    patterns:
+      - pattern: |
+          class $NAME implements $I {
+            ...
+          }
+      - pattern-not: |
+          class $NAME implements $I {
+            constructor(...) {
+              ...
+            }
+            ...
+          }
     metadata:
       category: comity-architecture
       standard: adapters.md
@@ -32,6 +35,11 @@ rules:
         - errors.md §6
     pattern: |
       throw new Error($MSG);
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/__tests__/**"
+        - "**/node_modules/**"
     metadata:
       category: comity-architecture
       standard: errors.md

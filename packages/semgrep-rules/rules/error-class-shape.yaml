@@ -14,11 +14,7 @@ rules:
       - pattern-not: |
           class $NAME extends BaseError { ... }
       - pattern-not: |
-          class $NAME extends $BASE { ... }
-      - pattern-not-inside: |
-          /** ... */
-          ...
-          class $NAME { ... }
+          abstract class $NAME extends Error { ... }
     metadata:
       category: comity-architecture
       standard: errors.md
@@ -31,16 +27,23 @@ rules:
       A Comity error class SHOULD expose a stable `code` field for cross-package
       error matching.
         - errors.md §6
-    pattern: |
-      class $NAME extends BaseError {
-        ...
-      }
-    pattern-not: |
-      class $NAME extends BaseError {
-        ...
-        readonly code: $T;
-        ...
-      }
+    patterns:
+      - pattern: |
+          class $NAME extends BaseError {
+            ...
+          }
+      - pattern-not: |
+          class $NAME extends BaseError {
+            ...
+            readonly code: $T;
+            ...
+          }
+      - pattern-not: |
+          class $NAME extends BaseError {
+            ...
+            readonly code = $V;
+            ...
+          }
     metadata:
       category: comity-architecture
       standard: errors.md

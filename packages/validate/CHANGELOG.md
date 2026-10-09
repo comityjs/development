@@ -1,5 +1,19 @@
 # @comity-dev/validate
 
+## 0.2.0
+
+### Minor Changes
+
+- 5c68c74: 0.2.0 release
+
+### Patch Changes
+
+- Updated dependencies [5c68c74]
+  - @comity-dev/dependency-rules@0.2.0
+  - @comity-dev/eslint-plugin@0.2.0
+  - @comity-dev/schemas@0.2.0
+  - @comity-dev/semgrep-rules@0.2.0
+
 ## 0.1.2
 
 ### Patch Changes

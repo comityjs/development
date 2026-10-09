@@ -36,6 +36,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build
+        run: pnpm build
+
+      - name: Verify packed artifacts
+        run: pnpm verify:artifacts
+
       - name: Release
         id: changesets
         uses: changesets/action@v1

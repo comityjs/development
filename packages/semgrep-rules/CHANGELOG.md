@@ -1,5 +1,11 @@
 # @comity-dev/semgrep-rules
 
+## 0.2.1
+
+### Patch Changes
+
+- d68b1f1: Scope `comity-error-class-must-extend-base-error` and `comity-error-class-must-have-code-field` to production code. Both rules now exclude test paths (`**/*.test.ts`, `**/__tests__/**`) and `**/node_modules/**`, matching the established conventions of the adapter and core rules. The error-class contract in `errors.md` applies to production packages; test fixtures and mocks are out of scope. Production violations remain detectable.
+
 ## 0.2.0
 
 ### Minor Changes

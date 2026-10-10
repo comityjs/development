@@ -4,8 +4,11 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-import { resolvePythonForSemgrep, runSemgrep } from "../semgrep.js";
+import {
+  resolveInterpreterFromBin,
+  resolvePythonForSemgrep,
+  runSemgrep,
+} from "../semgrep.js";
 
 let sandbox: string;
 let savedEnv: NodeJS.ProcessEnv;
@@ -37,7 +40,7 @@ function writeFakeInterpreter(): string {
 
   writeFileSync(
     file,
-    '#!/usr/bin/env node\nconsole.log(JSON.stringify({ results: [], errors: [] }));\n',
+    "#!/usr/bin/env node\nconsole.log(JSON.stringify({ results: [], errors: [] }));\n",
   );
   chmodSync(file, 0o755);
 
@@ -81,10 +84,49 @@ describe("resolvePythonForSemgrep", () => {
 
     expect(
       resolved === null ||
-        ["/usr/bin/python3", "/usr/local/bin/python3", "/opt/homebrew/bin/python3"].includes(
-        resolved,
-      ),
+        [
+          "/usr/bin/python3",
+          "/usr/local/bin/python3",
+          "/opt/homebrew/bin/python3",
+        ].includes(resolved),
     ).toBe(true);
+  });
+});
+
+describe("resolveInterpreterFromBin", () => {
+  it("returns the interpreter from a shim-style shebang", () => {
+    const python = writeFakeInterpreter();
+    const shim = join(sandbox, "semgrep-shim");
+
+    writeFileSync(
+      shim,
+      `#!${python}\nfrom semgrep.console_scripts.entrypoint import main\n`,
+    );
+
+    expect(resolveInterpreterFromBin(shim)).toBe(python);
+  });
+
+  it("resolves /usr/bin/env shebangs against PATH", () => {
+    const interp = join(sandbox, "myinterp");
+
+    writeFileSync(interp, "");
+    chmodSync(interp, 0o755);
+    process.env["PATH"] = `${sandbox}:${savedEnv["PATH"] ?? ""}`;
+
+    const shim = join(sandbox, "semgrep-env-shim");
+
+    writeFileSync(shim, "#!/usr/bin/env myinterp\n");
+
+    expect(resolveInterpreterFromBin(shim)).toBe(interp);
+  });
+
+  it("returns null without a usable shebang", () => {
+    const plain = join(sandbox, "semgrep-plain");
+
+    writeFileSync(plain, "not a script\n");
+
+    expect(resolveInterpreterFromBin(plain)).toBeNull();
+    expect(resolveInterpreterFromBin(join(sandbox, "missing-shim"))).toBeNull();
   });
 });
 
@@ -130,5 +172,61 @@ describe("runSemgrep interpreter selection", () => {
     expect(result.passed).toBe(false);
     expect(result.status).toBe("TOOL-UNAVAILABLE");
     expect(result.reason ?? "").toMatch(/SEMGREP_BIN|SEMGREP_PYTHON/);
+  });
+
+  it("prefers the semgrep binary's shebang interpreter over the system python", async () => {
+    const python = writeFakeInterpreter();
+    const shim = join(sandbox, "semgrep-shim");
+
+    writeFileSync(shim, `#!${python}\nfrom semgrep import main\n`);
+    process.env["SEMGREP_BIN"] = shim;
+
+    const result = await runSemgrep(repoWithOneCorePackage(sandbox));
+
+    expect(result.executed).toBe(true);
+    expect(result.status).toBe("PASS");
+    expect(result.passed).toBe(true);
+    expect(result.findings).toEqual([]);
+  });
+
+  it("still fails validation on a genuine rule match", async () => {
+    const stub = join(sandbox, "finding-python");
+
+    writeFileSync(
+      stub,
+      '#!/usr/bin/env node\nconsole.log(JSON.stringify({ results: [{ check_id: "x.comity-adapter-no-raw-error-throw", path: "packages/a/src/a.ts", start: { line: 3, col: 5 }, extra: { severity: "WARNING", message: "raw throw" } }], errors: [] }));\nprocess.exitCode = 1;\n',
+    );
+    chmodSync(stub, 0o755);
+    process.env["SEMGREP_BIN"] = join(sandbox, "semgrep-bin");
+    writeFileSync(process.env["SEMGREP_BIN"], "");
+    process.env["SEMGREP_PYTHON"] = stub;
+
+    const result = await runSemgrep(repoWithOneCorePackage(sandbox));
+
+    expect(result.executed).toBe(true);
+    expect(result.status).toBe("FAIL");
+    expect(result.passed).toBe(false);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.rule).toContain(
+      "comity-adapter-no-raw-error-throw",
+    );
+  });
+
+  it("reports a crashing interpreter as an execution error, never a pass", async () => {
+    const crashing = join(sandbox, "crashing-python");
+
+    writeFileSync(crashing, "#!/usr/bin/env node\nprocess.exit(1);\n");
+    chmodSync(crashing, 0o755);
+    process.env["SEMGREP_BIN"] = join(sandbox, "semgrep-bin");
+    writeFileSync(process.env["SEMGREP_BIN"], "");
+    process.env["SEMGREP_PYTHON"] = crashing;
+
+    const result = await runSemgrep(repoWithOneCorePackage(sandbox));
+
+    expect(result.executed).toBe(true);
+    expect(result.status).toBe("EXECUTION-ERROR");
+    expect(result.passed).toBe(false);
+    expect(result.findings.map((f) => f.rule)).toEqual(["SEM-CRASH"]);
+    expect(result.reason ?? "").toContain("tool execution failure");
   });
 });

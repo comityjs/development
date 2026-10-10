@@ -7,4 +7,4 @@ export type { CategoryResult, RunOptions, RunResult } from "./run.js";
 export { discoverRepository } from "./discover.js";
 export { ExitCode } from "./exit-codes.js";
 export { formatSummary, formatViolations } from "./format.js";
-export { runValidation } from "./run.js";
+export { exitCodeForResult, runValidation } from "./run.js";

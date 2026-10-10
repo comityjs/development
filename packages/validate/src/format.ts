@@ -72,6 +72,23 @@ function statusBadge(cat: CategoryResult): string {
 }
 
 /**
+ * The overall result line. A run that found no violations but could not
+ * execute a required stage is neither a pass nor a failure: it is
+ * incomplete. In particular the summary must never claim PASS while a
+ * category reports TOOL-UNAVAILABLE (the process exit code already
+ * distinguishes that case as TOOL_MISSING).
+ */
+function overallResult(result: FormatInput): string {
+  if (!result.passed) return "FAIL";
+
+  const toolUnavailable = Object.values(result.categories).some(
+    (cat) => cat.status === "TOOL-UNAVAILABLE",
+  );
+
+  return toolUnavailable ? "INCOMPLETE" : "PASS";
+}
+
+/**
  * Format a unified summary for the terminal.
  */
 export function formatSummary(result: FormatInput): string {
@@ -110,7 +127,7 @@ export function formatSummary(result: FormatInput): string {
   }
 
   lines.push("");
-  lines.push(`Result: ${result.passed ? "PASS" : "FAIL"}`);
+  lines.push(`Result: ${overallResult(result)}`);
 
   return lines.join("\n");
 }

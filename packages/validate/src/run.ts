@@ -1,4 +1,5 @@
 import type { EngineResult, Finding } from "./engines/types.js";
+import type { ExitCodeValue } from "./exit-codes.js";
 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +9,7 @@ import { runDepcruise } from "./engines/depcruise.js";
 import { runEslint } from "./engines/eslint.js";
 import { runSchema } from "./engines/schema.js";
 import { runSemgrep } from "./engines/semgrep.js";
+import { ExitCode } from "./exit-codes.js";
 
 export interface RunOptions {
   /** The root directory of the repository to validate */
@@ -230,4 +232,22 @@ function emptyEngineResult(reason: string): EngineResult {
     status: "NOT-RUN",
     reason,
   };
+}
+
+/**
+ * Map a validation result to the documented process exit code.
+ *
+ * A required tool that could not run must never surface as PASS: when
+ * every executed engine passed but at least one category reports
+ * `TOOL-UNAVAILABLE`, the result exits `TOOL_MISSING` (3) instead of
+ * fabricating a passing result.
+ */
+export function exitCodeForResult(result: RunResult): ExitCodeValue {
+  if (!result.passed) return ExitCode.FAIL;
+
+  const toolUnavailable = Object.values(result.categories).some(
+    (c) => c.status === "TOOL-UNAVAILABLE",
+  );
+
+  return toolUnavailable ? ExitCode.TOOL_MISSING : ExitCode.PASS;
 }

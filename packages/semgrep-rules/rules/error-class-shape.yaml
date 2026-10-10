@@ -15,6 +15,11 @@ rules:
           class $NAME extends BaseError { ... }
       - pattern-not: |
           abstract class $NAME extends Error { ... }
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/__tests__/**"
+        - "**/node_modules/**"
     metadata:
       category: comity-architecture
       standard: errors.md
@@ -44,6 +49,11 @@ rules:
             readonly code = $V;
             ...
           }
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/__tests__/**"
+        - "**/node_modules/**"
     metadata:
       category: comity-architecture
       standard: errors.md

@@ -28,7 +28,7 @@
 import { resolve } from "node:path";
 import { ExitCode } from "../exit-codes.js";
 import { formatSummary, formatViolations } from "../format.js";
-import { runValidation } from "../run.js";
+import { exitCodeForResult, runValidation } from "../run.js";
 
 interface ParsedArgs {
   root: string;
@@ -102,7 +102,10 @@ async function main(): Promise<void> {
       console.log(formatViolations(result.violations));
     }
 
-    process.exit(result.passed ? ExitCode.PASS : ExitCode.FAIL);
+    // A required tool that could not run must never surface as PASS:
+    // report it with the documented TOOL_MISSING exit code instead of
+    // fabricating a passing result.
+    process.exit(exitCodeForResult(result));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
 

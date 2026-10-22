@@ -1,8 +1,9 @@
+import type { ChildProcess } from "node:child_process";
 import type { Repository } from "../discover.js";
 import type { EngineResult, Finding } from "./types.js";
 
 import { buildSemgrepConfig } from "@comity-dev/semgrep-rules";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   closeSync,
   existsSync,
@@ -13,6 +14,318 @@ import {
   writeFileSync,
 } from "node:fs";
 import { relative, resolve } from "node:path";
+
+/** Default overall Semgrep scan timeout: five minutes. */
+export const DEFAULT_SEMGREP_TIMEOUT_MS = 300_000;
+
+/** Maximum single Node.js timer value, in milliseconds (2^31 - 1). */
+export const MAX_SEMGREP_TIMEOUT_MS = 2_147_483_647;
+
+/** Time allowed for a timed-out process group to exit before SIGKILL. */
+const SEMGREP_TERMINATION_GRACE_MS = 2_000;
+
+/** Frequency of optional verbose heartbeats. */
+const SEMGREP_HEARTBEAT_MS = 10_000;
+
+/** Preserve the previous spawnSync maxBuffer ceiling for the async scanner. */
+const MAX_SEMGREP_OUTPUT_BYTES = 16 * 1024 * 1024;
+
+export interface SemgrepOptions {
+  /** Overall scan timeout in milliseconds; overrides COMITY_SEMGREP_TIMEOUT_MS. */
+  readonly timeoutMs?: number;
+
+  /** Emit a heartbeat on stderr while the scan is running. */
+  readonly verbose?: boolean;
+}
+
+export interface SemgrepTimeoutResolution {
+  /** Validated timeout in milliseconds. */
+  readonly timeoutMs: number;
+
+  /** Configuration error, if the configured timeout is invalid. */
+  readonly error?: string;
+}
+
+interface SemgrepProcessOutcome {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly status: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly timedOut: boolean;
+  readonly spawnError: Error | null;
+  readonly outputLimitExceeded: boolean;
+}
+
+/**
+ * A file Semgrep could not fully parse. AST-based rules may have skipped it,
+ * so a scan that reports one cannot be treated as a clean pass.
+ */
+interface PartialParsingDiagnostic {
+  readonly path: string;
+  readonly message: string;
+}
+
+interface ParsedSemgrepOutput {
+  readonly findings: Finding[];
+  readonly malformed: boolean;
+  readonly partialParsing: readonly PartialParsingDiagnostic[];
+}
+
+/**
+ * Resolve the overall Semgrep timeout from an explicit override or the
+ * `COMITY_SEMGREP_TIMEOUT_MS` environment variable.
+ *
+ * @param env - Environment to read
+ * @param override - Test/embedding override; when supplied, it wins
+ *
+ * @returns A supported timeout in milliseconds, or a configuration error
+ *
+ * @remarks
+ * The timeout is deliberately bounded. A value of zero would disable the
+ * liveness guarantee, and values above Node's 32-bit timer limit would be
+ * clamped to 1 ms, so both are rejected. Invalid values are reported as
+ * configuration errors and never fall back silently.
+ */
+export function resolveSemgrepTimeout(
+  env: NodeJS.ProcessEnv = process.env,
+  override?: number,
+): SemgrepTimeoutResolution {
+  if (override !== undefined) {
+    if (
+      !Number.isSafeInteger(override) ||
+      override <= 0 ||
+      override > MAX_SEMGREP_TIMEOUT_MS
+    ) {
+      return {
+        timeoutMs: DEFAULT_SEMGREP_TIMEOUT_MS,
+        error: `timeoutMs must be an integer between 1 and ${MAX_SEMGREP_TIMEOUT_MS}; received ${String(override)}`,
+      };
+    }
+
+    return { timeoutMs: override };
+  }
+
+  const raw = env["COMITY_SEMGREP_TIMEOUT_MS"];
+
+  if (raw === undefined) {
+    return { timeoutMs: DEFAULT_SEMGREP_TIMEOUT_MS };
+  }
+
+  const trimmed = raw.trim();
+
+  if (!/^\d+$/.test(trimmed)) {
+    return {
+      timeoutMs: DEFAULT_SEMGREP_TIMEOUT_MS,
+      error: `COMITY_SEMGREP_TIMEOUT_MS must be an integer between 1 and ${MAX_SEMGREP_TIMEOUT_MS}; received "${raw}"`,
+    };
+  }
+
+  const parsed = Number(trimmed);
+
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed <= 0 ||
+    parsed > MAX_SEMGREP_TIMEOUT_MS
+  ) {
+    return {
+      timeoutMs: DEFAULT_SEMGREP_TIMEOUT_MS,
+      error: `COMITY_SEMGREP_TIMEOUT_MS must be an integer between 1 and ${MAX_SEMGREP_TIMEOUT_MS}; received "${raw}"`,
+    };
+  }
+
+  return { timeoutMs: parsed };
+}
+
+/**
+ * Terminate a Semgrep child process and, on POSIX, its process group.
+ *
+ * @param child - Child process started by the scanner
+ * @param signal - Signal to send
+ *
+ * @remarks
+ * The scanner is started with `detached: true` on POSIX so its Python and
+ * semgrep-core descendants share a process group. Killing the group prevents
+ * orphaned semgrep-core processes after a timeout. Windows has no equivalent
+ * process-group primitive in Node; there only the immediate child is signalled.
+ */
+function terminateSemgrepProcess(
+  child: ChildProcess,
+  signal: NodeJS.Signals,
+): void {
+  if (child.pid === undefined) return;
+
+  if (process.platform === "win32") {
+    try {
+      child.kill(signal);
+    } catch {
+      // The child may already have exited.
+    }
+
+    return;
+  }
+
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {
+      // The process group may already have exited.
+    }
+  }
+}
+
+/**
+ * Run the Semgrep subprocess with an overall timeout and bounded output.
+ *
+ * @param command - Interpreter to execute
+ * @param args - Interpreter arguments
+ * @param options - Working directory, environment, timeout, and verbosity
+ *
+ * @returns Captured output and termination details
+ *
+ * @remarks
+ * A timeout sends SIGTERM to the process group, then SIGKILL after a short
+ * grace period. The promise always settles; a close event normally does so
+ * sooner, while the grace timer is a hard ceiling. On Windows only the direct
+ * child can be signalled, so descendant termination is best-effort there.
+ */
+function runSemgrepProcess(
+  command: string,
+  args: string[],
+  options: {
+    readonly cwd: string;
+    readonly env: NodeJS.ProcessEnv;
+    readonly timeoutMs: number;
+    readonly verbose: boolean;
+  },
+): Promise<SemgrepProcessOutcome> {
+  return new Promise((resolvePromise) => {
+    let child: ChildProcess;
+
+    try {
+      child = spawn(command, args, {
+        cwd: options.cwd,
+        env: options.env,
+        detached: process.platform !== "win32",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      resolvePromise({
+        stdout: "",
+        stderr: "",
+        status: null,
+        signal: null,
+        timedOut: false,
+        spawnError: error instanceof Error ? error : new Error(String(error)),
+        outputLimitExceeded: false,
+      });
+
+      return;
+    }
+
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let spawnError: Error | null = null;
+    let outputLimitExceeded = false;
+    let settled = false;
+    let timeoutTimer: NodeJS.Timeout | undefined;
+    let forceTimer: NodeJS.Timeout | undefined;
+    let heartbeatTimer: NodeJS.Timeout | undefined;
+    const started = Date.now();
+
+    const clearTimers = (): void => {
+      if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
+      if (forceTimer !== undefined) clearTimeout(forceTimer);
+      if (heartbeatTimer !== undefined) clearInterval(heartbeatTimer);
+    };
+
+    const finish = (
+      status: number | null,
+      signal: NodeJS.Signals | null,
+    ): void => {
+      if (settled) return;
+
+      settled = true;
+      clearTimers();
+      resolvePromise({
+        stdout,
+        stderr,
+        status,
+        signal,
+        timedOut,
+        spawnError,
+        outputLimitExceeded,
+      });
+    };
+
+    const terminate = (): void => {
+      terminateSemgrepProcess(child, "SIGTERM");
+
+      // A process that ignores SIGTERM must not hold validation open. The
+      // hard timer also guarantees the promise settles if no close event
+      // arrives; killing the process group is the primary termination path.
+      forceTimer = setTimeout(() => {
+        terminateSemgrepProcess(child, "SIGKILL");
+        finish(null, "SIGKILL");
+      }, SEMGREP_TERMINATION_GRACE_MS);
+    };
+
+    const appendOutput = (target: "stdout" | "stderr", chunk: Buffer | string): void => {
+      const text = chunk.toString();
+
+      if (target === "stdout") stdout += text;
+      else stderr += text;
+
+      if (
+        !outputLimitExceeded &&
+        Buffer.byteLength(stdout, "utf8") + Buffer.byteLength(stderr, "utf8") >
+          MAX_SEMGREP_OUTPUT_BYTES
+      ) {
+        outputLimitExceeded = true;
+        terminate();
+      }
+    };
+
+    child.stdout?.on("data", (chunk: Buffer | string) =>
+      appendOutput("stdout", chunk),
+    );
+    child.stderr?.on("data", (chunk: Buffer | string) =>
+      appendOutput("stderr", chunk),
+    );
+
+    child.on("error", (error) => {
+      spawnError = error;
+      finish(null, null);
+    });
+
+    child.on("close", (status, signal) => {
+      finish(status, signal);
+    });
+
+    timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      terminate();
+    }, options.timeoutMs);
+
+    if (options.verbose) {
+      heartbeatTimer = setInterval(() => {
+        const elapsedSeconds = Math.round((Date.now() - started) / 1000);
+
+        try {
+          process.stderr.write(
+            `comity-validate: semgrep scan still running after ${elapsedSeconds}s (timeout ${Math.round(
+              options.timeoutMs / 1000,
+            )}s)\n`,
+          );
+        } catch {
+          // Diagnostics must never change the validation result.
+        }
+      }, SEMGREP_HEARTBEAT_MS);
+    }
+  });
+}
 
 /**
  * Derive the Python interpreter from a semgrep executable's shebang
@@ -235,8 +548,25 @@ function buildSemgrepArgs(
   return args;
 }
 
-export async function runSemgrep(repo: Repository): Promise<EngineResult> {
+export async function runSemgrep(
+  repo: Repository,
+  options: SemgrepOptions = {},
+): Promise<EngineResult> {
   const start = Date.now();
+  const timeout = resolveSemgrepTimeout(process.env, options.timeoutMs);
+
+  if (timeout.error !== undefined) {
+    return {
+      executed: false,
+      exitCode: null,
+      passed: false,
+      findings: [],
+      duration: Date.now() - start,
+      status: "CONFIGURATION-ERROR",
+      tool: "semgrep",
+      reason: `${timeout.error}; the Semgrep scan was not started`,
+    };
+  }
 
   // Build the combined Semgrep config. Semgrep's CLI accepts a single
   // --config path, so we concatenate all canonical rule files into one
@@ -352,95 +682,399 @@ export async function runSemgrep(repo: Repository): Promise<EngineResult> {
   }
 
   const args = buildSemgrepArgs(configPath, target, excludedDirs);
-  const proc = spawnSync(pythonBin, args, {
+  const outcome = await runSemgrepProcess(pythonBin, args, {
     cwd: repo.root,
     env: { ...process.env, PATH: envPath },
-    maxBuffer: 16 * 1024 * 1024,
-    encoding: "utf8",
+    timeoutMs: timeout.timeoutMs,
+    verbose: options.verbose === true,
   });
 
   cleanup();
 
-  const stdout = (proc.stdout as string) ?? "";
-  const stderr = (proc.stderr as string) ?? "";
-  const findings = parseSemgrepOutput(stdout, stderr);
+  const { stdout, stderr } = outcome;
+  const parsed = parseSemgrepOutput(stdout, stderr);
+  const findings = [...parsed.findings];
+  const duration = Date.now() - start;
+
+  if (outcome.spawnError !== null) {
+    const message = `semgrep could not be started: ${outcome.spawnError.message}; this is a tool execution failure, not a rule match`;
+
+    findings.push({
+      tool: "semgrep",
+      rule: "SEM-SPAWN",
+      message,
+      severity: "error",
+    });
+
+    return {
+      executed: true,
+      exitCode: null,
+      passed: false,
+      findings,
+      duration,
+      status: "EXECUTION-ERROR",
+      tool: "semgrep",
+      reason: message,
+    };
+  }
+
+  if (outcome.timedOut) {
+    const message = `semgrep exceeded the ${timeout.timeoutMs} ms timeout after ${duration} ms during structural-pattern validation; the process group was terminated. This is a tool execution failure, not a rule match.`;
+
+    findings.push({
+      tool: "semgrep",
+      rule: "SEM-TIMEOUT",
+      message,
+      severity: "error",
+    });
+
+    return {
+      executed: true,
+      exitCode: null,
+      passed: false,
+      findings,
+      duration,
+      status: "EXECUTION-ERROR",
+      tool: "semgrep",
+      reason: message,
+    };
+  }
+
+  if (outcome.outputLimitExceeded) {
+    const message = `semgrep output exceeded ${MAX_SEMGREP_OUTPUT_BYTES} bytes; the process group was terminated. This is a tool execution failure, not a rule match.`;
+
+    findings.push({
+      tool: "semgrep",
+      rule: "SEM-OUTPUT",
+      message,
+      severity: "error",
+    });
+
+    return {
+      executed: true,
+      exitCode: null,
+      passed: false,
+      findings,
+      duration,
+      status: "EXECUTION-ERROR",
+      tool: "semgrep",
+      reason: message,
+    };
+  }
+
+  if (outcome.signal !== null) {
+    const message = `semgrep was terminated by ${outcome.signal}; this is a tool execution failure, not a rule match.`;
+
+    findings.push({
+      tool: "semgrep",
+      rule: "SEM-SIGNAL",
+      message,
+      severity: "error",
+    });
+
+    return {
+      executed: true,
+      exitCode: null,
+      passed: false,
+      findings,
+      duration,
+      status: "EXECUTION-ERROR",
+      tool: "semgrep",
+      reason: message,
+    };
+  }
+
+  // Incomplete analysis takes precedence over the policy verdict. Semgrep
+  // reports a partially parsed file as a `level: "warn"` error and still
+  // exits 0, so the exit code alone would report a clean pass even though
+  // AST-based rules may never have analysed that file. This check runs before
+  // the crash/exit-code checks so the affected file is always surfaced.
+  if (parsed.partialParsing.length > 0) {
+    const first = parsed.partialParsing[0];
+
+    for (const diagnostic of parsed.partialParsing) {
+      findings.push({
+        tool: "semgrep",
+        rule: "SEM-PARTIAL-PARSE",
+        message: `semgrep could not fully parse ${diagnostic.path}: ${diagnostic.message}. AST-based rules may not have analysed this file, so the result is incomplete.`,
+        file: diagnostic.path,
+        severity: "error",
+      });
+    }
+
+    const exitNote =
+      outcome.status !== null && outcome.status !== 0
+        ? `; semgrep exited with code ${outcome.status}`
+        : "";
+    const message = `semgrep could not fully parse ${parsed.partialParsing.length} file(s) (first: ${first?.path ?? "<unknown file>"}); the scan is incomplete, so this category cannot report PASS${exitNote}. This is an incomplete-analysis failure, not a rule match.`;
+
+    return {
+      executed: true,
+      exitCode: outcome.status,
+      passed: false,
+      findings,
+      duration,
+      status: "EXECUTION-ERROR",
+      tool: "semgrep",
+      reason: message,
+    };
+  }
 
   // If semgrep exited non-zero but produced no parseable findings, this
   // is an EXECUTION-ERROR (configuration, rule-parse, internal crash),
   // not a policy violation.
-  if (proc.status !== null && proc.status !== 0 && findings.length === 0) {
+  if (outcome.status !== null && outcome.status !== 0 && findings.length === 0) {
     const stderrHead = stderr.split("\n")[0] ?? "";
     const stdoutHead = stdout.slice(0, 500);
 
     findings.push({
       tool: "semgrep",
       rule: "SEM-CRASH",
-      message: `semgrep exited with code ${proc.status}; stderr: ${stderrHead}; stdout (first 500): ${stdoutHead}`,
+      message: `semgrep exited with code ${outcome.status}; stderr: ${stderrHead}; stdout (first 500): ${stdoutHead}`,
       severity: "error",
     });
 
     return {
       executed: true,
-      exitCode: proc.status,
+      exitCode: outcome.status,
       passed: false,
       findings,
-      duration: Date.now() - start,
+      duration,
       status: "EXECUTION-ERROR",
       tool: "semgrep",
-      reason: `semgrep exited with code ${proc.status} before producing findings (stderr: ${stderrHead}); this is a tool execution failure, not a rule match — see the SEM-CRASH finding`,
+      reason: `semgrep exited with code ${outcome.status} before producing findings (stderr: ${stderrHead}); this is a tool execution failure, not a rule match — see the SEM-CRASH finding`,
+    };
+  }
+
+  if (outcome.status === null) {
+    const message =
+      "semgrep terminated without an exit code; this is a tool execution failure, not a rule match.";
+
+    findings.push({
+      tool: "semgrep",
+      rule: "SEM-CRASH",
+      message,
+      severity: "error",
+    });
+
+    return {
+      executed: true,
+      exitCode: null,
+      passed: false,
+      findings,
+      duration,
+      status: "EXECUTION-ERROR",
+      tool: "semgrep",
+      reason: message,
+    };
+  }
+
+  if (parsed.malformed) {
+    const stdoutHead = stdout.slice(0, 500);
+    const message = `semgrep produced malformed JSON output (first 500 chars: ${stdoutHead}); this is a tool execution failure, not a rule match.`;
+
+    findings.push({
+      tool: "semgrep",
+      rule: "SEM-MALFORMED",
+      message,
+      severity: "error",
+    });
+
+    return {
+      executed: true,
+      exitCode: outcome.status,
+      passed: false,
+      findings,
+      duration,
+      status: "EXECUTION-ERROR",
+      tool: "semgrep",
+      reason: message,
     };
   }
 
   return {
     executed: true,
-    exitCode: proc.status,
-    passed: proc.status === 0 && findings.length === 0,
+    exitCode: outcome.status,
+    passed: outcome.status === 0 && findings.length === 0,
     findings,
-    duration: Date.now() - start,
-    status: proc.status === 0 ? "PASS" : "FAIL",
+    duration,
+    status:
+      outcome.status === 0 && findings.length === 0 ? "PASS" : "FAIL",
     tool: "semgrep",
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Validate the result fields consumed by this validator. */
+function isSemgrepResult(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+
+  const start = value["start"];
+
+  return (
+    typeof value["check_id"] === "string" &&
+    typeof value["path"] === "string" &&
+    isRecord(start) &&
+    typeof start["line"] === "number" &&
+    typeof start["col"] === "number"
+  );
+}
+
+/** Validate the error fields consumed by this validator. */
+function isSemgrepError(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+
+  if (typeof value["level"] !== "string") return false;
+  if ("rule_id" in value && typeof value["rule_id"] !== "string") return false;
+  if ("message" in value && typeof value["message"] !== "string") return false;
+  // Semgrep encodes `type` as a tag name or a `[tagName, ...]` tuple; this
+  // validator now reads it to detect partial parsing, so anything else is
+  // treated as malformed rather than silently ignored.
+  if ("type" in value && !isSemgrepErrorType(value["type"])) return false;
+
+  return true;
+}
+
+/** Whether a Semgrep error `type` field has a supported shape. */
+function isSemgrepErrorType(value: unknown): boolean {
+  if (typeof value === "string") return true;
+
+  return Array.isArray(value) && typeof value[0] === "string";
+}
+
+/** The tag name of a Semgrep error `type` field, when it is well formed. */
+function semgrepErrorTypeName(value: unknown): string | null {
+  if (typeof value === "string") return value;
+
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+
+  return null;
+}
+
+/**
+ * Whether an error entry reports a file Semgrep could not fully parse.
+ *
+ * @remarks
+ * Semgrep 1.180.0 reports partial parsing at `level: "warn"` with the
+ * `PartialParsing` tag name while still exiting `0`, so the exit code alone
+ * cannot detect it. The tag name is the primary signal; a warning that names
+ * a syntax error is treated the same way so Semgrep versions that omit the
+ * tag name cannot silently skip a file. Warnings that do not indicate
+ * incomplete analysis keep their existing (non-fatal) treatment.
+ */
+function isIncompleteAnalysisError(entry: Record<string, unknown>): boolean {
+  const type = semgrepErrorTypeName(entry["type"]);
+
+  if (type !== null && /partialparsing/i.test(type)) return true;
+
+  const message = entry["message"];
+
+  return typeof message === "string" && /\bsyntax error\b/i.test(message);
+}
+
+/** The file an error entry refers to, when Semgrep reports one. */
+function errorEntryPath(entry: Record<string, unknown>): string {
+  const direct = entry["path"];
+
+  if (typeof direct === "string" && direct.length > 0) return direct;
+
+  const spans = entry["spans"];
+
+  if (Array.isArray(spans)) {
+    for (const span of spans) {
+      if (isRecord(span) && typeof span["file"] === "string") {
+        return span["file"];
+      }
+    }
+  }
+
+  const locations = Array.isArray(entry["type"]) ? entry["type"][1] : undefined;
+
+  if (Array.isArray(locations)) {
+    for (const location of locations) {
+      if (isRecord(location) && typeof location["path"] === "string") {
+        return location["path"];
+      }
+    }
+  }
+
+  return "<unknown file>";
 }
 
 function parseSemgrepOutput(
   stdout: string | null,
   stderr: string | null,
-): Finding[] {
-  const out = stdout ?? stderr ?? "";
+): ParsedSemgrepOutput {
+  const out = stdout?.trim() ? stdout : (stderr ?? "");
 
-  if (!out.trim()) return [];
+  if (!out.trim()) return { findings: [], malformed: true, partialParsing: [] };
 
-  let parsed: {
-    results?: Array<Record<string, unknown>>;
-    errors?: Array<{
-      rule_id?: string;
-      message?: string;
-      level?: string;
-    }>;
-  } | null = null;
+  let parsedValue: unknown;
 
   try {
-    parsed = JSON.parse(out);
+    parsedValue = JSON.parse(out);
   } catch {
-    return [];
+    return { findings: [], malformed: true, partialParsing: [] };
+  }
+
+  if (!isRecord(parsedValue)) {
+    return { findings: [], malformed: true, partialParsing: [] };
+  }
+
+  const rawResults = parsedValue["results"];
+  const rawErrors = parsedValue["errors"];
+
+  if (!Array.isArray(rawResults)) {
+    return { findings: [], malformed: true, partialParsing: [] };
+  }
+
+  if (rawErrors !== undefined && !Array.isArray(rawErrors)) {
+    return { findings: [], malformed: true, partialParsing: [] };
+  }
+
+  if (!rawResults.every(isSemgrepResult)) {
+    return { findings: [], malformed: true, partialParsing: [] };
+  }
+
+  if (rawErrors !== undefined && !rawErrors.every(isSemgrepError)) {
+    return { findings: [], malformed: true, partialParsing: [] };
   }
 
   const findings: Finding[] = [];
+  const partialParsing: PartialParsingDiagnostic[] = [];
 
-  for (const e of parsed?.errors ?? []) {
-    if (e.level === "error") {
+  for (const e of (rawErrors ?? []) as Array<Record<string, unknown>>) {
+    if (e["level"] === "error") {
       findings.push({
         tool: "semgrep",
-        rule: `SEM-PARSE-${e.rule_id ?? "UNKNOWN"}`,
-        message: e.message ?? "semgrep rule parse error",
+        rule: `SEM-PARSE-${
+          typeof e["rule_id"] === "string" ? e["rule_id"] : "UNKNOWN"
+        }`,
+        message:
+          typeof e["message"] === "string"
+            ? e["message"]
+            : "semgrep rule parse error",
         severity: "error",
+      });
+
+      continue;
+    }
+
+    if (isIncompleteAnalysisError(e)) {
+      partialParsing.push({
+        path: errorEntryPath(e),
+        message:
+          typeof e["message"] === "string"
+            ? e["message"]
+            : "semgrep reported a file it could not fully parse",
       });
     }
   }
 
-  const results = parsed?.results ?? [];
-
-  for (const r of results) {
+  for (const r of rawResults) {
     const start = r["start"] as { line?: number; col?: number } | undefined;
     const extra = r["extra"] as
       { severity?: string; message?: string } | undefined;
@@ -456,5 +1090,5 @@ function parseSemgrepOutput(
     });
   }
 
-  return findings;
+  return { findings, malformed: false, partialParsing };
 }

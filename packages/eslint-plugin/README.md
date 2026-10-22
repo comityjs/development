@@ -6,7 +6,7 @@ Reusable ESLint rules for Comity-wide source-code policy. This package owns the 
 
 ## Scope
 
-Six rules, each addressing a Comity-wide concern:
+Seven rules, each addressing a Comity-wide concern:
 
 | Rule                          | Concern                                                                                                                                       |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -16,6 +16,7 @@ Six rules, each addressing a Comity-wide concern:
 | `no-crypto-in-core`           | Forbid `crypto` in Core Modules (domain must be deterministic).                                                                               |
 | `no-forbidden-subpath-import` | Disallow imports from forbidden package subpaths (`utils`, `helpers`, `shared`, `internal`, `lazy`).                                          |
 | `no-render-core-http-runtime` | Forbid render Core Modules from depending on HTTP runtime.                                                                                    |
+| `require-internal-marker`     | Require an `@internal` JSDoc tag on production sources under `src/internal/` and `src/lazy/` (owner-approved Contract B).                     |
 
 ## Ownership
 

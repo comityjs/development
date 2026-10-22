@@ -123,6 +123,12 @@ describe("rule files", () => {
     }
 
     expect(ids.has("comity-adapter-must-declare-implements")).toBe(false);
+
+    // Contract B (internal placement requires an `@internal` marker) is
+    // enforced by the shared ESLint plugin rule
+    // `@comity-dev/require-internal-marker`. The retired Semgrep rule could
+    // not inspect real JSDoc syntax and MUST NOT be reintroduced here.
+    expect(ids.has("comity-module-must-have-internal-marker")).toBe(false);
   });
 });
 
@@ -255,6 +261,44 @@ describe.skipIf(!HAS_SEMGREP)(
 
       expect(hits.map((h) => h.path)).toEqual([
         expect.stringContaining(join("src", "adapter.ts")),
+      ]);
+    });
+
+    it("static-state ignores tests but detects production static state", () => {
+      const root = writeTree({
+        "packages/foo/src/state.ts":
+          "export class Stateful {\n  static instance: number = 1;\n}\n",
+        "packages/foo/src/state.test.ts":
+          "export class Fake {\n  static instance: number = 1;\n}\n",
+        "packages/foo/src/__tests__/fake.ts":
+          "export class Fake {\n  static instance: number = 1;\n}\n",
+      });
+      const hits = scan(
+        join(RULES_DIR, "composition-shape.yaml"),
+        join(root, "packages"),
+      ).filter((h) => h.rule === "comity-no-static-state-in-core");
+
+      expect(hits.map((h) => h.path)).toEqual([
+        expect.stringContaining(join("src", "state.ts")),
+      ]);
+    });
+
+    it("core-no-process-env ignores tests but detects production reads", () => {
+      const root = writeTree({
+        "packages/foo/src/config.ts":
+          'export const url = process.env["DATABASE_URL"];\n',
+        "packages/foo/src/config.test.ts":
+          'export const url = process.env["DATABASE_URL"];\n',
+        "packages/foo/src/__tests__/helper.ts":
+          'export const url = process.env["DATABASE_URL"];\n',
+      });
+      const hits = scan(
+        join(RULES_DIR, "core-domain-no-crypto.yaml"),
+        join(root, "packages"),
+      ).filter((h) => h.rule === "comity-core-no-process-env");
+
+      expect(hits.map((h) => h.path)).toEqual([
+        expect.stringContaining(join("src", "config.ts")),
       ]);
     });
 

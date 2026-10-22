@@ -18,26 +18,3 @@ rules:
       category: comity-architecture
       standard: public-api.md
       section: 3
-
-  - id: comity-module-must-have-internal-marker
-    languages: [typescript]
-    severity: INFO
-    message: |
-      Files intended to be internal-only SHOULD be located under an `internal/`
-      or `lazy/` directory; the ESLint rule `@comity/no-forbidden-deep-import`
-      enforces the reverse — consumers MUST NOT reach into these paths.
-        - public-api.md §3.2
-    patterns:
-      - pattern: |
-          /** @internal */
-          ...
-      - pattern-not-inside: |
-          /** @internal */
-          ...
-          ...
-          /** @internal */
-          ...
-    metadata:
-      category: comity-architecture
-      standard: public-api.md
-      section: "3.2"

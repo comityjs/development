@@ -24,6 +24,7 @@ import noForbiddenDeepImport from "./rules/no-forbidden-deep-import.js";
 import noForbiddenSubpathImport from "./rules/no-forbidden-subpath-import.js";
 import noLayerViolation from "./rules/no-layer-violation.js";
 import noRenderCoreHttpRuntime from "./rules/no-render-core-http-runtime.js";
+import requireInternalMarker from "./rules/require-internal-marker.js";
 
 export interface BuiltinRule {
   /** The stable identifier of the rule */
@@ -40,6 +41,7 @@ export const BUILTIN_RULES: BuiltinRule[] = [
   { name: "no-crypto-in-core", rule: noCryptoInCore },
   { name: "no-forbidden-subpath-import", rule: noForbiddenSubpathImport },
   { name: "no-render-core-http-runtime", rule: noRenderCoreHttpRuntime },
+  { name: "require-internal-marker", rule: requireInternalMarker },
 ];
 
 export const plugin: ESLint.Plugin = {

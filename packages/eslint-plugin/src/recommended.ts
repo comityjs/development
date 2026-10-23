@@ -15,5 +15,6 @@ export const recommended: Linter.Config = {
     "@comity-dev/no-crypto-in-core": "error",
     "@comity-dev/no-forbidden-subpath-import": "error",
     "@comity-dev/no-render-core-http-runtime": "error",
+    "@comity-dev/require-internal-marker": "error",
   },
 };

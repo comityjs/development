@@ -50,6 +50,11 @@ comity-validate --only=schema        # one engine only
 comity-validate --only=eslint --verbose
 ```
 
+`--only <category>` runs a single engine. Policies owned by another engine are
+not evaluated: `--only semgrep` does not check ESLint-owned policy, including
+the required `@internal` marker rule (`@comity-dev/require-internal-marker`).
+Use the default run (no `--only`) for full policy coverage.
+
 Exit codes:
 
 - `0` — validation passed
@@ -61,10 +66,11 @@ Exit codes:
 
 The Semgrep engine shells out to a local Semgrep installation:
 
-| Variable         | Purpose                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------ |
-| `SEMGREP_BIN`    | Path to the `semgrep` executable. Used as-is when it exists; otherwise resolved from PATH.       |
-| `SEMGREP_PYTHON` | Path to the Python interpreter that ships the `semgrep` module. The scan is executed with it.    |
+| Variable                    | Purpose                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| `SEMGREP_BIN`               | Path to the `semgrep` executable. Used as-is when it exists; otherwise resolved from PATH.       |
+| `SEMGREP_PYTHON`            | Path to the Python interpreter that ships the `semgrep` module. The scan is executed with it.    |
+| `COMITY_SEMGREP_TIMEOUT_MS` | Overall scan timeout in milliseconds. Defaults to `300000` (five minutes). Must be an integer between `1` and `2147483647`; invalid or oversized values are reported as `CONFIGURATION-ERROR`. |
 
 Rules:
 
@@ -77,6 +83,17 @@ Rules:
   then `python3` on PATH).
 - The scan `PATH` is prefixed with the directories of the resolved
   `SEMGREP_BIN` and interpreter so Semgrep finds its sibling `pysemgrep`.
+- Every scan has an overall liveness bound (`COMITY_SEMGREP_TIMEOUT_MS`). A
+  timeout is reported as `EXECUTION-ERROR`, never as PASS. On POSIX the
+  scanner's process group is terminated so Semgrep's Python and `semgrep-core`
+  descendants do not remain running; on Windows only the immediate child can
+  be signalled, so descendant termination is best-effort.
+- `--verbose` emits a stderr heartbeat every ten seconds while a scan is
+  running; the final summary remains on stdout.
+- A file Semgrep could not fully parse (`PartialParsing`) is reported as
+  `EXECUTION-ERROR` with a `SEM-PARTIAL-PARSE` finding naming the file, never
+  as PASS: a partially parsed file may have been skipped by AST-based rules,
+  so the scan is incomplete rather than clean.
 
 ```bash
 SEMGREP_BIN=~/.local/bin/semgrep SEMGREP_PYTHON=/opt/homebrew/bin/python3 \

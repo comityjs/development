@@ -89,6 +89,24 @@ function categoryOf(result: EngineResult): CategoryResult {
   };
 }
 
+/**
+ * Whether a category is acceptable for the overall validation result.
+ *
+ * A skipped category is acceptable only when it is explicitly NOT-RUN or
+ * NOT-APPLICABLE, or when a required tool is unavailable (which the exit-code
+ * mapping reports separately). Configuration and execution errors are never
+ * acceptable merely because they did not execute.
+ */
+function categoryIsAcceptable(result: EngineResult): boolean {
+  if (result.executed) return result.passed;
+
+  return (
+    result.status === "NOT-RUN" ||
+    result.status === "NOT-APPLICABLE" ||
+    result.status === "TOOL-UNAVAILABLE"
+  );
+}
+
 function emptyCategory(reason: string): CategoryResult {
   return {
     status: "NOT-RUN",
@@ -172,7 +190,7 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
   let semgrepResult: EngineResult;
 
   if (!only || only === "semgrep") {
-    semgrepResult = await runSemgrep(repo);
+    semgrepResult = await runSemgrep(repo, { verbose: options.verbose === true });
   } else {
     semgrepResult = emptyEngineResult("semgrep engine skipped");
   }
@@ -201,11 +219,9 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
 
   const allExecuted = [depResult, eslintResult, semgrepResult, adapterResult];
   const allPassed =
-    allExecuted.every((r) => (r.executed ? r.passed : r.status !== "FAIL")) &&
-    (metaResult.executed ? metaResult.passed : metaResult.status !== "FAIL") &&
-    (configResult.executed
-      ? configResult.passed
-      : configResult.status !== "FAIL");
+    allExecuted.every(categoryIsAcceptable) &&
+    categoryIsAcceptable(metaResult) &&
+    categoryIsAcceptable(configResult);
 
   return {
     passed: allPassed,
@@ -243,7 +259,13 @@ function emptyEngineResult(reason: string): EngineResult {
  * fabricating a passing result.
  */
 export function exitCodeForResult(result: RunResult): ExitCodeValue {
-  if (!result.passed) return ExitCode.FAIL;
+  if (!result.passed) {
+    const configurationError = Object.values(result.categories).some(
+      (category) => category.status === "CONFIGURATION-ERROR",
+    );
+
+    return configurationError ? ExitCode.CONFIG_ERROR : ExitCode.FAIL;
+  }
 
   const toolUnavailable = Object.values(result.categories).some(
     (c) => c.status === "TOOL-UNAVAILABLE",

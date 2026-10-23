@@ -87,7 +87,7 @@ recorded.
 
 | ID | Rule | Source | Mechanism | Owner | Status | Evidence |
 |----|------|--------|-----------|-------|--------|----------|
-| M1 | module surface shape | modules.md | Semgrep (`module-shape`, `composition-shape`, `value-object-shape`) | Development | SHARED | `packages/semgrep-rules/rules/*.yaml` |
+| M1 | module surface shape | modules.md | Semgrep (`module-shape`, `composition-shape`, `value-object-shape`) for structural shape; ESLint (`@comity-dev/require-internal-marker`) for the JSDoc `@internal` marker contract | Development | SHARED | `packages/semgrep-rules/rules/*.yaml`; `packages/eslint-plugin/src/rules/require-internal-marker.ts` |
 | M2 | core MUST NOT use Date / performance.now / Math.random | layering-policy.md §6 | ESLint built-in (`no-restricted-globals` / `no-restricted-properties`) in Community config | Community | COMMUNITY-LOCAL | `community/eslint.config.js`. Distinct from shared `no-date-in-core` heuristic rule. |
 
 ## Lifecycle Events (`lifecycle-events.md`)

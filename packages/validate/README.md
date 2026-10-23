@@ -50,6 +50,11 @@ comity-validate --only=schema        # one engine only
 comity-validate --only=eslint --verbose
 ```
 
+`--only <category>` runs a single engine. Policies owned by another engine are
+not evaluated: `--only semgrep` does not check ESLint-owned policy, including
+the required `@internal` marker rule (`@comity-dev/require-internal-marker`).
+Use the default run (no `--only`) for full policy coverage.
+
 Exit codes:
 
 - `0` — validation passed

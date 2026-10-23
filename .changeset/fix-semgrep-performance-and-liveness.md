@@ -13,3 +13,7 @@ cohort. This changeset also bounds Semgrep scans with an overall timeout,
 process-group termination, and explicit execution-error reporting, and treats
 Semgrep `PartialParsing` warnings as an incomplete-analysis failure, so a file
 that was only partially parsed can no longer produce a passing result.
+Configuration errors now map to the documented exit code `2` (previously
+reported as `1`), and a category that did not execute because of a
+configuration error can no longer be accepted as a skipped category. The
+`--verbose` flag is now propagated to the Semgrep scan.

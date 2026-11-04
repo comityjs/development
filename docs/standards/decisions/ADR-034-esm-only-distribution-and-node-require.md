@@ -13,7 +13,7 @@
 >   **Acceptance does not authorise WP-B.** The semver class is confirmed at WP-B's release, and the export-map key shape and the
 >   optional bundler smoke build remain WP-B implementation choices.
 
-**Status:** Accepted
+**Status:** Accepted — with **Amendment 1** (2026-11-04, implementation clarification: flat `dist/` layout; see "Amendment 1" below). The original decision text is preserved unchanged except for the pointer notes marked "[Amendment 1]".
 
 ## Context
 
@@ -94,7 +94,7 @@ Three different things must not be conflated. This ADR decides the first and the
 | **CommonJS modules / builds** | **Not supported and not maintained.** No `dist/cjs`, no CommonJS-syntax output, no separate CommonJS entry point, no package-specific CommonJS exception. Comity is not "dual ESM/CJS" |
 | **Node `require(ESM)` compatibility** | **Supported on Node 24+**, subject to Node's synchronous ESM loading rules. `require()` loads the package's **ESM** entry point; it does not load a CommonJS build. This is *compatibility*, not CommonJS support |
 
-Illustration only (not authorisation to change any manifest; the existing `dist/esm` and `dist/types` layout is unchanged by this ADR):
+Illustration only (not authorisation to change any manifest; the existing `dist/esm` and `dist/types` layout is unchanged by this ADR) **[Amendment 1: the layout statement here is superseded by the flat `dist/` layout; the illustration's own `./dist/index.js` paths match the amended contract]**:
 
 ```jsonc
 {
@@ -130,7 +130,7 @@ old approach is not to be continued.
    package, and any package published by a consuming repository under the Comity-wide policy (ADR-036) — ship a **single ESM
    build**. There is **no separate CommonJS build** and **no package-specific CommonJS exception**.
 2. **One runtime implementation: the existing ESM build.** `comity-build` stops producing `dist/cjs` (the CommonJS pass in
-   both build and watch mode). `dist/esm` and `dist/types` remain.
+   both build and watch mode). `dist/esm` and `dist/types` remain. **[Amendment 1: the output layout stated in this item and in item 3 is superseded by the flat `dist/` layout; the ESM-only decision itself is unchanged.]**
 3. **Export-map strategy, uniform for every package.** For every exported subpath, `import` and `require` both resolve to the
    **same** `dist/esm` file and the **same** `dist/types` declaration:
 
@@ -141,7 +141,7 @@ old approach is not to be continued.
    }
    ```
 
-   `main` becomes the ESM entry (`./dist/esm/index.js`); `module`, `types` and `typesVersions` are unchanged. Keeping both
+   `main` becomes the ESM entry (`./dist/esm/index.js`); `module`, `types` and `typesVersions` are unchanged. **[Amendment 1: paths in this item are superseded: `main` is `./dist/index.js`, `types` is `./dist/index.d.ts`, the `module` field is dropped, and the two-condition shape above is replaced by `types` + `default`.]** Keeping both
    conditions preserves the current map shape and the `comity-normalize-package-json` condition order. A `types` + `default`
    collapse is equivalent and may be chosen at implementation time without changing this decision.
 4. **`@comity/queue-pg-boss` is not an exception.** Its export map adopts the same shape (a `require` condition resolving to
@@ -188,7 +188,53 @@ are unchanged, and ADR-022 remains Accepted. Because ADR-022's paragraph disclai
 text is preserved: on acceptance it receives a pointer note and is otherwise not rewritten. **This ADR was Accepted on 2026-11-04;
 ADR-022's conditional note has accordingly been converted to a definitive pointer, and ADR-022's original text remains the Accepted
 record, unrewritten.** The superseding provisions are **not yet implemented** — `comity-build` still emits `dist/cjs` — and are
-delivered by WP-B, which this acceptance does not authorise.
+delivered by WP-B, which this acceptance does not authorise. **[Amendment 1: implementation status is updated below; this sentence records the state at acceptance.]**
+
+## Amendment 1 — Flat `dist/` layout (implementation clarification)
+
+> **Authority:** architecture-owner authorisation, 2026-11-04, to document the accepted implementation. This is an
+> amendment to ADR-034, **not** a new ADR and **not** a reopening of the decision. ESM-only distribution, no CommonJS build,
+> and `require(ESM)` compatibility on Node 24+ are unchanged. The original text above records the decision as accepted,
+> including its statement that `dist/esm` and `dist/types` remain; that statement is **superseded as to layout only**, by the
+> text below. The flat layout was **not** part of the original decision and this amendment does not claim it was.
+
+**Current contract (supersedes the layout statements of Decision 2 and Decision 3):**
+
+1. **ESM is the only distributed JavaScript module format.** No CommonJS build, no `.cjs`/`.cts` output and no
+   package-specific exception (Decision 1, unchanged).
+2. **One flat `dist/` directory.** `comity-build` emits runtime JavaScript and TypeScript declarations in a single compiler
+   pass directly under `dist/`; a JavaScript module and its declaration sit side by side (`dist/index.js` next to
+   `dist/index.d.ts`, `dist/errors/index.js` next to `dist/errors/index.d.ts`).
+3. **No separate output trees.** There is no `dist/esm`, no `dist/types` and no `dist/cjs`. `comity-build` removes `dist/`
+   before every build, so a repeated build cannot leave an obsolete tree behind.
+4. **Declarations are `.d.ts`.** Packages are `"type": "module"`, so `.d.ts` files are ESM-scoped; no `.d.mts` or `.d.cts`
+   files are emitted.
+5. **Exports use `types` and `default`.** Each exported subpath is
+   `{ "types": "./dist/<subpath>/index.d.ts", "default": "./dist/<subpath>/index.js" }`, with an environment condition (for
+   example `node`) between them where a package genuinely needs one (`@comity/html-react` and `@comity/html-preact`
+   `./streaming`). `main` is `./dist/index.js`, `types` is `./dist/index.d.ts`, the `module` field is not used, and
+   `typesVersions` entries point at the flat declaration paths. `types` is first and `default` is last, because Node and
+   TypeScript resolve conditions in object order.
+6. **Separate `import` and `require` branches are not required** when both would resolve to the same ESM file. Node's
+   `require` resolves through the `default` condition to the same file as `import`, so Decision 9 (one module instance, one
+   set of classes) holds. This is the "`types` + `default` collapse" that Decision 3 already allowed at implementation time.
+7. **`require(ESM)` is supported on Node 24+, subject to Node's synchronous module-graph limitation.** A graph containing
+   top-level `await` fails with `ERR_REQUIRE_ASYNC_MODULE` (Decision 7, unchanged). This is `require(ESM)` compatibility and
+   **not** universal CommonJS compatibility; Comity makes no CommonJS promise.
+8. **Intentional package-specific export restrictions are preserved.** The set of public subpaths of every package is
+   unchanged by the layout.
+
+**Unchanged by this amendment:** Decisions 1, 4–10, the alternatives considered, the relationship to ADR-022, the semver
+proposal (patch; see ADR-033 for the peer cascade that a non-patch release of a peered package would trigger), and the
+validation requirements, except that "uniform `import`/`require` shape" in Validation requirement 5 reads "uniform
+`types`/`default` shape" and every `dist/esm`/`dist/types` path in this document reads as the flat path.
+
+**Implementation status (2026-11-04):** implemented in comity-development (`@comity-dev/build`, `@comity-dev/package-tools`)
+and comity-community (54 package manifests), and verified on packed tarballs (flat `dist/` only, every export target present)
+and in clean consumers (`nodenext`, `node16`, `bundler`, `node10`; Node 24.19.0 `import` and `require(ESM)` returning the
+same file and the same export identity). **Not yet released:** the registry still serves `@comity-dev/build@0.2.0`, which
+emits the previous layout, until the release described in the roadmap is approved and published. The text above under
+"Relationship to ADR-022" records the state at acceptance.
 
 ## Alternatives considered
 

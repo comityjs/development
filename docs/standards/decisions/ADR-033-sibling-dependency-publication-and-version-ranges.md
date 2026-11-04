@@ -4,15 +4,22 @@
 > - Canonical owner: comity-development
 > - Runtime owner: comity-community (`@comity/*` manifests, release pipeline)
 > - Raised by: Cross-Repository Dependency Policy Audit and Remediation Plan (Commerce / Comity boundary work, 2026-11-04)
+> - **Accepted:** 2026-11-04, by Comity maintainer decision. Accepted as written, including: Decision 1's scope — every published
+>   sibling dependency under Comity governance, `@comity-dev/*` included; Decision 9 — the Changesets peer-major cascade is the
+>   default release strategy; Decision 6 — the coordinated patch release is a **separate migration activity**; and split release
+>   only through a separately authorised pilot. **No deprecation schedule** for previously published exact pins is set by this
+>   acceptance. **Acceptance does not authorise any work package:** WP-A1, WP-A2 and WP-A4 each require their own implementation
+>   authorisation (roadmap §8.6), and WP-A2 additionally requires release-owner approval.
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
 Every `@comity/*` package that depends on a sibling package declares it with the pnpm protocol `workspace:*`. At publish
 time (`changeset publish` runs `pnpm publish`) pnpm rewrites `workspace:*` to the sibling's **exact** version.
 
-Verified on 2026-11-04 (local `community` at `0e2bb15`; `origin/main` at `3391f94` gives the same counts):
+Verified on 2026-11-04 (counts re-verified on local `community` at `91f5de1`, which contains `origin/main` `3391f94`; the
+earlier base `0e2bb15` gives the same counts):
 
 - **120** sibling references use `workspace:*`: **94** in `dependencies` and **26** in `peerDependencies`, across **50**
   packages (the 26 peer entries are in the **19** Technology Adapters that follow `adapters.md` §13). No sibling reference
@@ -46,8 +53,10 @@ publishes ranges, not only in how downstream packages declare dependencies.
 ## Decision
 
 1. **Internal sibling references in `dependencies` and `peerDependencies` use `workspace:^`.** pnpm publishes it as
-   `^<sibling version at publish time>`. This applies to `@comity/*` packages in comity-community. Under 0.x, `^0.9.1` means
-   `>=0.9.1 <0.10.0`: patch drift is allowed; a sibling minor is a range break.
+   `^<sibling version at publish time>`. **Scope: every published sibling dependency in every repository under Comity
+   governance** — `@comity/*` packages in comity-community, `@comity-dev/*` packages in comity-development, and any package
+   published by a consuming repository under the Comity-wide policy (ADR-036). See "Scope of the range rule" below. Under 0.x,
+   `^0.9.1` means `>=0.9.1 <0.10.0`: patch drift is allowed; a sibling minor is a range break.
 2. **`devDependencies` on siblings are unchanged** (`workspace:*`). They are not a published compatibility constraint.
 3. **The dependency + peer pairing for Technology Adapters (`adapters.md` §13) is unchanged.** Only the range protocol
    changes. Converting Core Module `dependencies` into peers is **not** decided here and is not supported by the evidence.
@@ -62,9 +71,53 @@ publishes ranges, not only in how downstream packages declare dependencies.
 7. **No guarantee of a single instance is claimed.** A caret range removes one common cause of duplicates. It does not
    prevent a consumer from pinning an older version, an out-of-range peer (pnpm warns and installs), or mixed old and new
    Comity versions. Detection belongs to the consumer verification required by ADR-036.
-8. **`Version Packages` pull requests are reviewed under a mandatory gate**, defined in `docs/standards/release-review.md`.
-   The gate covers peer-dependent version bumps and their rationale. This ADR does not change Changesets configuration or
-   add automation; any such change is a separate design decision.
+8. **`Version Packages` pull requests are reviewed under a mandatory gate**, defined in `docs/standards/release-review.md`
+   (a basic checklist for every PR; a full review when objectively checkable triggers apply). This ADR does not change
+   Changesets configuration or add automation; any such change is a separate design decision.
+9. **The Changesets peer-dependent major cascade is the default release strategy** (architecture-owner decision D-01; see the
+   next section). When a peered Core Module receives a minor release, its peer dependents are released with the major bump
+   Changesets assigns (under 0.x, `1.0.0`), in the **same** `Version Packages` plan. This ADR does not configure Changesets to
+   suppress the cascade and does not adopt a split-release workflow.
+
+### Scope of the range rule (verified 2026-11-04)
+
+Decision 1 applies to **every published sibling dependency under Comity governance**, not only to `@comity/*`. The scope is
+set by the publication mechanism, not by the namespace.
+
+Verified in comity-development (8 packages, all `"private": false`, published at 0.2.0 / 0.2.2 / 0.3.0):
+
+- **7** sibling references, **all** in `dependencies` with `workspace:*`: `@comity-dev/cli` 3 (`build`, `package-tools`,
+  `validate`) and `@comity-dev/validate` 4 (`schemas`, `dependency-rules`, `eslint-plugin`, `semgrep-rules`). **Zero** sibling
+  `peerDependencies` and **zero** sibling `devDependencies`.
+- `development/.changeset/config.json` uses the same independent-release model as comity-community: `"access": "public"`,
+  `"fixed": []`, `"linked": []`, `"updateInternalDependencies": "patch"`. Versions already diverge (0.2.0, 0.2.2, 0.3.0).
+- `workspace:*` is therefore rewritten to an **exact** version at publish time by the same pnpm mechanism, producing the same
+  published-graph property this ADR exists to remove.
+
+**No separate release policy exists for `@comity-dev/*`.** Neither repository contains a second release channel, a different
+range protocol, a Changesets `fixed`/`linked` grouping, or any documented exemption for these packages. A different namespace
+is not evidence of a different policy, and none is inferred. Decision 1 therefore applies to these 7 references on the same
+terms, which also makes this ADR's scope consistent with ADR-034 (universal, including `@comity-dev/*`) and ADR-036
+(Comity-wide policy, centrally owned).
+
+What the scope extension does **not** claim, kept explicit:
+
+- The **identity** defect in "Problem statement" is verified for `@comity/*` (runtime `BaseError` identity). Whether the
+  `@comity-dev/*` packages carry runtime identity that a duplicate instance would break was **not** separately verified. The
+  extension rests on publication-policy consistency — the same mechanism publishes the same exact pins — not on a reproduced
+  identity failure in the tooling packages.
+- The **peer-major cascade** section below does not apply to `@comity-dev/*`: those packages declare **no** sibling peers, so
+  the peer rule in `assemble-release-plan` has no input. Their `dependencies` behaviour is unchanged by this ADR.
+- Decision 3 (the Technology Adapter dependency + peer pairing of `adapters.md` §13) is a comity-community pattern and is
+  unaffected.
+- **Migration is a separate activity from policy.** WP-A1 / WP-A2 migrate and release comity-community only. Migrating the 7
+  `@comity-dev/*` references and releasing them is a separate later task in comity-development (roadmap §2, WP-A4). It is not a
+  precondition of WP-A1 or WP-A2, and accepting this ADR does not authorise it.
+
+**Already-published exact pins are out of scope and immutable.** Versions published before the migration keep their exact pins
+permanently (Decision 6). This ADR changes only what **future** releases publish. Deprecating older exact-pinned versions is a
+registry-maintenance concern for the release owner, decided after publication; it is not an architectural decision and not a
+precondition of accepting this ADR. **No deprecation schedule is set or implied here.**
 
 ### The peer-dependent major bump (verified in the pinned Changesets version)
 
@@ -76,13 +129,43 @@ A **patch** release of the peered package does not trigger it. In a synthetic wo
 configuration, a patch of the base left `workspace:^` dependents unreleased and a minor released every peer dependent as
 `1.0.0`.
 
-Consequence for this ADR:
+Consequence for this ADR, and the approved default (D-01):
 
 - The coordinated release in Decision 6 is a **patch**, so it does not trigger the major cascade.
-- The next **minor** of a peered Core Module (for example `primitives`, `composition`, `http`, `sql`, `cache`, `queue`,
-  `acl`) would release its adapters as `1.0.0`. This is not a change introduced by `workspace:^`; it exists today.
-  The review gate in `release-review.md` exists to stop an unjustified cascade. Whether to accept it, split the release,
-  or change Changesets behaviour is a decision the gate escalates; it is not decided here.
+- The next **minor** of a peered Core Module (the **16** distinct peered `@comity/*` packages today: `acl`, `auth`, `auth-tokens`,
+  `cache`, `cli`, `composition`, `graphql-client`, `html`, `http`, `hydration`, `i18n`, `primitives`, `queue`, `router`, `sql`,
+  `validation`; 26 peer references across 19 adapters) releases its peer dependents as `1.0.0`. This exists today; it is not
+  introduced by `workspace:^`.
+- **Default: accept the cascade.** Example: `@comity/primitives` `0.9.1` → `0.10.0` with its dependent adapters `0.9.x` →
+  `1.0.0`. This is intentional and acceptable.
+
+**Why the cascade is the default.** Three reasons, each verified (independent review, experiments T1–T5; `@changesets/*`
+sources in the installed versions):
+
+1. **The published graph equals the tested graph.** In a cascade release the peered package and its dependents are published
+   together from one plan, with dependents' peer ranges at `^<new version>`. CI builds `workspace:^` against the new local
+   version, and consumers receive exactly that combination.
+2. **A split release publishes an untested combination.** Releasing the peered package alone leaves the registry with the new
+   minor beside dependents whose published peer range excludes it (`^0.9.1` vs `0.10.0`). Consumers get an unmet peer (a warning
+   only) and run an adapter against a Comity minor it was never released or tested against; CI meanwhile tested the new version.
+   ADR-036 records exactly this condition ("warns only … and the package then runs against the wrong version") as a verified
+   defect, and its `strict-peer-dependencies=true` verification would fail against `latest` during the window.
+3. **A split is not executable with the current workflow.** The outcome is achievable only with
+   `changeset version --ignore <dependents>` (verified: accepted because `.changeset/config.json` has `"ignore": []`; every
+   dependent of an ignored package must also be ignored). `changesets/action` runs the fixed `pnpm run version`
+   (`changeset version`, no `--ignore`), so a split needs a script/workflow change. Naming fewer packages in a changeset cannot
+   avoid the cascade: dependents are computed from the dependency graph by `determineDependents()`.
+
+**Costs accepted.** Dependent adapters can reach `1.0.0` without a contract change. `1.0.0` is a semver stability signal that is
+not reversible; every later breaking change to those adapters then requires a major. Consumers see a major for a peer-driven
+bump. The release review (`release-review.md`) requires each peer-driven major to be listed, named as peer-driven, and stated as
+such in the changelog and release notes.
+
+**A split-release workflow is not adopted.** It may be investigated only as a **separately authorised future pilot**, which
+must at least: be authorised as a release-process change; be rehearsed on the real workspace graph (19 adapters, 16 peered
+packages), not a synthetic one; define publication ordering, the length and handling of the incompatible window, and a
+verification of the exact published package combination (not the workspace graph); and amend `release-review.md`. Until then,
+no Changesets configuration, script or workflow is changed to suppress the cascade.
 
 ## Alternatives considered
 
@@ -95,6 +178,9 @@ Consequence for this ADR:
 | Convert all Core `dependencies` to peers | Not supported by the evidence; peers do not repair transitive exact pins (the third experiment above) |
 | Enable `onlyUpdatePeerDependentsWhenOutOfRange` and rely on wide peer ranges | Changes Changesets behaviour and publishes unvalidated compatibility claims; explicitly out of scope |
 | Consumer-only `pnpm.overrides` | A mitigation for already-published versions (see Compatibility), not a fix for future publication |
+| `workspace:^` for `dependencies` only; `peerDependencies` stay `workspace:*` | Fixes the transitive-pin graph but leaves published peers exact, so a consumer-declared peer still cannot dedupe against an adapter; it does not change the cascade (it fires on any non-patch peer release regardless of range) |
+| `fixed` group limited to the identity-bearing core | Changes the release model for those packages and forces unrelated republishing; not supported by evidence that the simpler change is inadequate |
+| Split-release workflow (`changeset version --ignore`) as default | Needs a release-process change; publishes an untested peer/dependent combination (see the cascade section); not adopted. Possible only as a separately authorised pilot |
 
 ## Consequences
 
@@ -110,6 +196,9 @@ patch releases to every dependent (verified: `workspace:^` dependents are not re
   together past that floor.
 - Dependents' ranges move with each sibling **minor**, so every 0.x minor of a depended-upon package forces dependent
   re-releases (as today).
+- A minor of a peered Core Module releases its peer dependents as `1.0.0` (D-01, accepted); see the cascade section for the
+  costs. Release ordering: the peered package must be published before its dependents within the same run; the reviewer
+  records the order observed in the publish log (`release-review.md` §5.3).
 - Old versions keep exact pins; see Compatibility.
 
 ## Compatibility and migration
@@ -122,7 +211,7 @@ patch releases to every dependent (verified: `workspace:^` dependents are not re
 
 Migration, in order (detail and acceptance criteria in `docs/architecture/dependency-remediation-roadmap.md`):
 
-1. Branch from `origin/main` (the local checkout may be behind it).
+1. Branch from an up-to-date `main` (fetch first); confirm the base contains `origin/main`, and re-count there.
 2. Change the verified references to `workspace:^`; re-count; list exceptions.
 3. Add one changeset listing every publishable package with a sibling edge as `patch`.
 4. Review the resulting `Version Packages` PR under `release-review.md`.
@@ -148,17 +237,44 @@ caret release is an owner decision.
 ## Dependencies on other decisions
 
 - **ADR-036** defines how consumers declare Comity dependencies and verify graphs; this ADR does not guarantee a single instance without it.
+  The two agree on release policy: the cascade default keeps the published graph equal to the tested graph, which is what
+  ADR-036's clean-consumer verification assumes.
 - **ADR-034** (ESM-only distribution) is independent. If both ship as patches they may share one release train, or ship separately (roadmap).
 - **ADR-008** (Core-to-Core register) and `adapters.md` §13's peer requirement are unaffected. The `workspace:*` examples in
   `adapters.md` §13 are updated when this ADR is Accepted (not before; standards describe current practice).
 - **ADR-022, ADR-029/030/031/032** are unaffected.
 
-## Open questions (require maintainer decision before this ADR is Accepted)
+## Acceptance status and remaining questions
 
-1. Adoption of `workspace:^` and of the coordinated patch release (owner direction given; Accepted status requires maintainer review).
-2. How a peer-driven `1.0.0` cascade is handled when a peered Core Module next needs a minor (escalated by the review gate).
-3. Whether the `@comity-dev/*` workspace references in comity-development adopt the same rule (low priority; tooling has no identity concern).
-4. Whether to deprecate the exact-pinned versions after the caret release.
+**Accepted 2026-11-04** by Comity maintainer decision (see Provenance). No architectural question remains open: everything this
+ADR decides is decided here or resolved by an approved architecture-owner decision, and was confirmed at acceptance.
+
+### Confirmed at acceptance
+
+1. Formal acceptance of this ADR, including Decision 1's **scope** (comity-community, comity-development, and consuming
+   repositories under ADR-036 — see "Scope of the range rule") and the coordinated patch release of Decision 6. **Acceptance
+   authorises no work package:** WP-A1, WP-A2 and WP-A4 each require their own implementation authorisation (roadmap §8.6), and
+   WP-A2 additionally requires release-owner approval.
+
+### Resolved — not open
+
+2. ~~How a peer-driven `1.0.0` cascade is handled~~ — **resolved by architecture-owner decision D-01**: the cascade is the default
+   (see "Decision" 9). Only a separately authorised pilot may change it.
+3. ~~Scope of the range rule for `@comity-dev/*`~~ — **resolved**: Decision 1 applies to those 7 published sibling references
+   (see "Scope of the range rule"). The verified evidence establishes no different release policy: the same pnpm `workspace:*`
+   rewriting, the same public independent-release Changesets model (`"access": "public"`, `"fixed": []`, `"linked": []`), and no
+   separate channel, grouping or exemption in either repository. comity-community's consumption of these packages as root
+   `devDependencies` with caret ranges is development-tool consumption and is governed by neither this ADR nor ADR-036; that is
+   unchanged. The claim that the tooling packages carry no runtime-identity concern remains **this ADR's unverified assertion**
+   and is not a ground for the scope decision. Maintainers ratify the scope by accepting this ADR; no separate decision is
+   required, and WP-A1 (community only) is unaffected.
+### Deferred — does not gate acceptance
+
+4. **Deprecating old exact-pinned versions after the caret release.** Existing exact pins stay on the registry permanently regardless,
+   so this changes only a registry warning. Authority: the release owner (roadmap §8); decided after WP-A2 publishes, not before.
+   This is a registry-maintenance concern, **not** an unresolved architectural decision, and **no deprecation schedule is proposed**.
+5. **A split-release pilot** (roadmap WP-A3). Optional future work; proposing one would itself change release policy and require
+   architecture-owner approval.
 
 ## References
 
@@ -167,5 +283,8 @@ caret release is an owner decision.
 
 ## Scope
 
-This ADR decides the published range protocol for internal sibling references and the existence of a release review gate.
-It does not change any manifest, Changesets configuration, workflow, or published version.
+This ADR decides the published range protocol for internal sibling references, **the scope of that protocol** (every published
+sibling dependency under Comity governance — see "Scope of the range rule"), and the existence of a release review gate.
+It does not change any manifest, Changesets configuration, workflow, or published version. It sets **no deprecation schedule**
+for already-published exact pins and authorises no migration: WP-A1/WP-A2 (comity-community) and WP-A4 (comity-development) are
+separate implementation tasks requiring their own authorisation.

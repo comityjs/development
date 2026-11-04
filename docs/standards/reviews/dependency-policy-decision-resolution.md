@@ -1,0 +1,263 @@
+# Decision Resolution Record — Comity Dependency Policy
+
+> **Date:** 2026-11-04 (closure pass; **formal maintainer acceptance recorded the same day**). **Nature:** records the architecture
+> owner's decisions D-01…D-08, how the proposed documents were reconciled to them, and the classification of everything still outstanding.
+> **Update — formal maintainer acceptance (2026-11-04, after the closure pass).** **ADR-033, ADR-034, ADR-035 and ADR-036 are now
+> `Accepted`, and `release-review.md` is adopted.** ADR-032 remains `Proposed`; ADR-022 remains `Accepted` (partially superseded by
+> ADR-034; historical text preserved, conditional note converted to a definitive pointer). Statements below that describe the four ADRs
+> as `Proposed`, or acceptance/adoption as "not occurred", are the **closure-pass record** and are preserved as written; they are
+> superseded by this update. Items **B1–B5 in §3 are closed**; every other classification in §3 stands unchanged.
+> **Update — governance closure (2026-11-04, latest entry).** The user has confirmed/authorised **A1** (WP-B is a hard prerequisite for
+> the first Commerce publication), **B6** (WP-A2 approved; release-owner gate satisfied), **B8** (Commerce adoption of the Comity
+> dependency policy authorised), **B9** (freeze change control authorised, narrowly scoped to ADR-036 reference alignment in two named
+> frozen documents) and **B10** (the work-package authorisation responsibility model). See the §3 rows and the "B10 responsibility model"
+> subsection.
+> **Still outstanding:** **B7** (whether WP-B shares WP-A2's release train), **B8(b)** (Commerce repository, namespace,
+> `repository.type` — freeze #1–#3), **B9's** `07 §4` **manifest-sketch** change control, the ADR-034 **semver class**, and **B10
+> authorisation for every work package**.
+> **Neither architecture-owner approval, maintainer acceptance, release approval nor Commerce authorisation is implementation
+> authorisation. No work package is `AUTHORIZED`, `STARTED` or `COMPLETED`** — see the B10 model. Nothing was implemented.
+> **Evidence record:** `dependency-policy-independent-review.md` (IR-nn, unchanged) and `dependency-policy-maintainer-review.md`
+> (original findings preserved; a post-resolution note at its top marks superseded statements).
+
+## 1. Approved decisions and rationale
+
+| ID | Decision (as approved) | Rationale |
+|---|---|---|
+| **D-01** | The Changesets peer-major cascade is the default release strategy. A peered package's minor releases its dependents as majors (`primitives` 0.9.1 → 0.10.0; adapters 0.9.x → `1.0.0`). No Changesets configuration change to suppress it; a split-release workflow only as a separately authorised future pilot. | A split needs `changeset version --ignore`, which the fixed `pnpm run version` script in `release.yml` cannot pass, and it publishes an untested peer/dependent window that ADR-036 records as a verified defect, while CI tests the new workspace version. The cascade keeps the published graph equal to the tested graph. Accepted cost: unnecessary-looking, irreversible `1.0.0`s. |
+| **D-02** | Every Comity package is a single ESM distribution, including CLI packages: one ESM build, `import`, Node 24+ `require(ESM)` compatibility (loads the ESM entry point; not CommonJS support), no CommonJS build or CommonJS-syntax output, no per-package exception, one runtime identity. Supersedes the dual-distribution rationale; reconcile ADR-022. | A working dual build creates two `BaseError` classes (verified); the CJS build is currently broken anyway. ADR-022's own text says the CLI architecture does not require CJS and that dual distribution followed the repository convention, so superseding it removes a convention, not an architectural requirement. |
+| **D-03** | Two validation stages: workspace declaration validation (dev/CI) and validation of the actual package tarball before publication (including `files` and `exports`). | Workspace `dist/types` is not the published artifact; only the tarball shows what `files`/`exports` ship. Not implemented. |
+| **D-04** | Deterministic discovery of Comity packages; no hard-coded `@comity/*` filter; Commerce namespace not decided. | The current `discover.ts` filter silently discovers nothing for an undecided namespace and passes. |
+| **D-05** | Missing build target → `CONFIGURATION-ERROR`, `executed: false`, `passed: false`, no finding, exit 2, never `NOT-RUN`; exit 2 outranks exit 1; **all findings in every category are printed in normal output without `--verbose`**. | Existing code already maps the missing-build case (verified); but findings print only with `--verbose` today, so a real violation can hide behind exit 2. |
+| **D-06** | Declaration validator and clean-consumer test are separate responsibilities: the producer validates its declarations and package surface; the clean-consumer test installs the packed or registry-equivalent package and verifies the consumer experience. The validator is not required to discover packages in a consumer installation. | ADR-036 §4 step 4 required the engine to run in a fresh consumer directory where it discovers zero packages and passes (IR-05). |
+| **D-07** | `release-review.md` is mandatory: a basic checklist for every `Version Packages` PR; full review when explicit, objectively checkable triggers apply. | A routine patch should not cost the same as a peered minor affecting many adapters. |
+| **D-08** | One Comity-wide policy, centrally owned; enforcement local to each repository; cross-repository dependency direction remains documented policy until enforcement exists; packed tarballs for local development; registry-equivalent clean-consumer verification for final checks. | Development does not own other repositories' CI; `repository-ownership.md` does not mention Commerce; no cross-repository engine exists. |
+
+**D-05 is an approved decision, not an open item.** Its implementation (the CLI-wide output change, the declaration categories' exit
+behaviour) is ordinary work inside WP-C1; it needs no further authority beyond that work package's own authorisation.
+
+## 2. Decision matrix
+
+> **Statuses below are as at the governance-closure pass (2026-11-04).** B-items marked ~~struck~~ are closed; the authoritative
+> per-item outcomes are the §3 rows. **No work package is `AUTHORIZED`, `STARTED` or `COMPLETED`** — every one still needs B10
+> authorisation (see the "B10 responsibility model" subsection).
+
+| ID | Affected ADR(s) / documents | Documentation status | Implementation status | Remaining action |
+|---|---|---|---|---|
+| D-01 | ADR-033 (Decision 1 scope, "Scope of the range rule", Decision 9, cascade section); `release-review.md` §1, §5.1; roadmap (WP-A3 closed; WP-A4 added) | Reconciled; ADR-033 `Accepted`; `release-review.md` `Adopted` | None required (no config change); pilot is optional future work | ~~B1~~ **done**; ~~B5~~ **done**; ~~B6~~ **APPROVED** (WP-A2 gate satisfied); **WP-A1/WP-A2/WP-A4 authorisation (B10) outstanding** |
+| D-02 | ADR-034 (rewritten); ADR-022 (definitive supersession pointer); `repository.md`, `SKILL.md`, `AGENT.md`; roadmap | Reconciled; descriptive docs state current behaviour plus pointer; `runtime-support.md` deliberately unchanged until WP-B | **None.** `dist/cjs` is still built; `queue-pg-boss` is still import-only | ~~B2~~ **done**; **A1 CONFIRMED** (WP-B is a hard prerequisite for the first Commerce publication); **WP-B authorisation (B10) outstanding**; B7 for release-train sharing |
+| D-03 | ADR-035 Decisions 1–3; design §12; roadmap WP-C1/C3 | Reconciled; ADR-035 `Accepted` | **None.** No declaration or tarball validation exists | ~~B3~~ **done**; **WP-C authorisation (B10) outstanding** |
+| D-04 | ADR-035 Decisions 4–6; design §2 | Reconciled | **None.** `discover.ts` still filters by name prefix | Implementation choices C2, C3 inside WP-C1 (needs B10) |
+| D-05 | ADR-035 Decisions 11–13; design §9 | Reconciled | Missing-build mapping exists in `run.ts`/`exit-codes.ts`; the declaration engine does not; `--verbose` gating remains in `comity-validate.ts` | Implementation inside WP-C1 (needs B10); no further decision |
+| D-06 | ADR-036 §4a/4b; ADR-035 dependencies; Commerce policy §7; roadmap WP-D3 | Reconciled | **None.** No clean-consumer job exists anywhere | Each consuming repository builds its own job (WP-D3 for Commerce; needs B10 and B8(b)) |
+| D-07 | `release-review.md` (rewritten) | Reconciled; **`Adopted` 2026-11-04** | Manual standard; no automation | ~~B5~~ **done** (adopted); T6 calibration (C8) after first uses |
+| D-08 | ADR-036 §6 and enforcement table; Commerce policy §7 | Reconciled; ADR-036 `Accepted` | Policy only | ~~B4~~ **done**; ~~B8(a)~~ **AUTHORIZED** (Commerce adoption); **WP-D1 authorisation (B10) outstanding**; B9's manifest-sketch change control outstanding |
+
+## 3. Outstanding decisions — classified (exactly one category each)
+
+> **Acceptance update (2026-11-04).** Items **B1, B2, B3, B4 and B5 are closed** by the formal maintainer acceptance of ADR-033…036
+> and the adoption of `release-review.md`; each row records its outcome. The semver class inside B2 was **not** decided at acceptance
+> and remains a release-time approval.
+>
+> **Governance-closure update (2026-11-04, later).** The user has explicitly confirmed/authorised **A1, B6, B8, B9 and B10**; each row
+> records its outcome and its precise scope. **These are governance actions only.** Two scope limits matter and are recorded in the rows:
+> **B8** authorises **Commerce adoption of the Comity dependency policy only** — the repository, namespace and `repository.type`
+> decisions (freeze #1–#3) that the original B8 row also covered remain **OPEN**; and **B9** authorises **only** the alignment of stale
+> ADR-036 status references in the two named frozen documents — the `07 §4` **manifest-sketch** correction is **not** authorised by it.
+> **No work package was authorised, started or completed by these confirmations** (see B10).
+
+**Categories.** **A** architecture-owner decision (changes approved architecture or release policy; must precede the relevant work
+package or publication). **B** maintainer governance decision (ADR acceptance, adoption, repository governance, release approval).
+**C** implementation decision (made by the implementation owner within the approved architecture, during the work package).
+**D** deferred (does not block authorised documentation work or the next planned work package). Where an item could fit two, it is
+classified by the nature of the decision first; D is used only for genuinely optional or later paths. "Authority" is stated only where a
+document supports it; otherwise "not named in the documents".
+
+### A. Architecture-owner decision required
+
+| # | Question | Evidence and constraints | Authority | ADR / WP | Blocks | Latest point |
+|---|---|---|---|---|---|---|
+| ~~A1~~ **CONFIRMED** | Must WP-B (ESM-only implementation) be complete before the first Commerce package is published? — **CONFIRMED by the user (architecture owner) 2026-11-04: YES.** Option **(i)** is adopted and option (ii) is rejected: **WP-B is a hard prerequisite.** (1) **No Commerce package may be published before WP-B is completed.** (2) WP-B must ensure the Commerce packages use the **ESM-only distribution model required by ADR-034**. (3) **Packaging and toolchain compatibility must be verified before the first publication.** **This confirmation does NOT by itself authorise implementation of WP-B or any other work package** — each still requires explicit authorisation under B10. | Approved policy is D-02 (ESM-only for every Comity package). Implementation in existing Comity packages is **NOT STARTED** (WP-B); 53 of 54 community packages still route `require` to a build Node cannot load, and `comity-build` still emits `dist/cjs`. A Commerce package must itself ship the uniform export map and pass the unconditional `require` leg (Commerce policy §7b), which needs a build tool that emits one ESM build; today's `comity-build` would produce a non-compliant dual build until WP-B changes it. The previous roadmap rule "WP-B only if Commerce promises CommonJS" was already superseded by D-02. **Resolved by adopting (i); (ii) is not adopted.** | Architecture owner — **decided 2026-11-04** | ADR-034, ADR-036; WP-B, WP-D3; roadmap §4 | The Commerce **first-publication milestone** (it does not gate WP-A, WP-B or WP-C from starting once authorised) | **Decided.** WP-B authorisation (B10) **and** WP-B completion now precede the first Commerce publication; WP-D3's `require` leg is designed against the confirmed prerequisite |
+
+### B. Maintainer governance decision required
+
+| # | Question | Evidence and constraints | Authority | ADR / WP | Blocks | Latest point |
+|---|---|---|---|---|---|---|
+| ~~B1~~ **CLOSED** | Accept, amend or reject ADR-033 — **Accepted 2026-11-04** as written: Decision 1 scope (incl. `@comity-dev/*`), cascade default, coordinated patch release as a separate migration activity, split release only via a separately authorised pilot, **no deprecation schedule** | ADR-033 `Accepted` | Maintainers — **decided** | ADR-033 | WP-A1/WP-A2 still need their own implementation authorisation (B10); WP-A2 also needs B6 | Closed |
+| ~~B2~~ **CLOSED (acceptance only)** | Accept ADR-034 — **Accepted 2026-11-04** as written, including the partial supersession of ADR-022. **The semver class was NOT decided at acceptance** (patch proposed; `queue-pg-boss` is not peered and may be classed separately); it remains a release-time approval | ADR-034 `Accepted`; ADR-022 pointer finalised | Maintainers — **decided**; semver class still open | ADR-034 | WP-B needs B10; the semver class is needed before WP-B's **release** | Acceptance closed; semver class at release planning (B7) |
+| ~~B3~~ **CLOSED** | Accept ADR-035 — **Accepted 2026-11-04** with both points confirmed: severity **`error`** from day one (**Decision 9 guard preserved**) and `typescript` a runtime `dependency` of `@comity-dev/validate` (`^5.9.3`) | ADR Decisions 9 and 14; baseline counts independently reproduced | Maintainers — **decided** | ADR-035 | WP-C1/C2/C3 still need B10; the `typescript` manifest change is WP-C1 work | Closed |
+| ~~B4~~ **CLOSED** | Accept ADR-036 — **Accepted 2026-11-04**. **Toolchain correction:** the verification baseline is **pnpm 12.16.1 / Node 24+**, superseding the pnpm 10.13.x previously proposed; it is a verification baseline, **not** a consumer minimum-version guarantee | ADR §4b and "Confirmed at acceptance"; Commerce adoption remains separate | Maintainers — **decided**; Commerce owner for Commerce adoption (roadmap §8.5) | ADR-036 | WP-D1 still needs B10 and the freeze change control (B9) | Closed |
+| ~~B5~~ **CLOSED** | Formally adopt `release-review.md` — **Adopted 2026-11-04**, effective on adoption. Mandatory for every `Version Packages` PR; full review only when triggers T1–T6 apply; WP-A2 the recommended pilot; T6 calibration (C8) unchanged | D-07 approved; the standard is now `Adopted` | Maintainers — **decided** | `release-review.md` | In force for WP-A2's `Version Packages` PR | Closed |
+| ~~B6~~ **APPROVED** | Approve the coordinated patch release (WP-A2) — **APPROVED by the user (release owner) 2026-11-04.** The **release-owner approval gate for WP-A2 is SATISFIED**. The existing WP-A2 **scope and conditions are preserved unchanged** (roadmap §2 WP-A2, §5.1): all packages with sibling edges in **one** `Version Packages` PR, **patch only**; packed manifests carry `^<version>`; the clean-consumer checks of ADR-033 pass; the `release-review.md` gate applies. **This approval is not authorisation for unrelated release activities and is not a scope expansion.** | Roadmap §8.2; §5.1; `release-review.md` | Release owner — **decided** | ADR-033; WP-A2 | WP-A2 execution. **WP-A2 is APPROVED for execution but NOT STARTED**, and it still depends on **WP-A1**, which is **NOT AUTHORIZED** (B10) — so execution cannot begin until WP-A1 is authorised and completed | Gate satisfied 2026-11-04 |
+| B7 | Whether WP-B shares WP-A2's release train | ADR-034 and roadmap §4: "the release owner's call" | Release owner | WP-A2, WP-B | WP-B release planning only (not implementation) | When the WP-B release is planned |
+| ~~B8~~ **PARTIALLY CLOSED — adoption AUTHORIZED** | The original B8 row conflated two distinct Commerce-owner decisions; they are separated here. **(a) Commerce adoption of the Comity dependency policy — AUTHORIZED by the user (Commerce owner) 2026-11-04.** The Commerce owner has authorised adoption of the Comity dependency policy (`commerce/docs/governance/package-dependency-policy.md`) in the Commerce repository. This authorisation **does not reopen or modify any ADR already Accepted** in the Comity governance repositories, and **does not authorise unrelated Commerce implementation work**; only the documentation/governance changes required to reflect it were made. **(b) Commerce repository, namespace and `repository.type` (freeze decisions #1–#3) — STILL OPEN, NOT AUTHORIZED.** The Commerce namespace stays undecided and `comity validate` in Commerce still depends on `repository.type`. | Commerce policy header, §1, §9; roadmap §8.4/§8.5 | Commerce owner — **(a) decided; (b) undecided** | Commerce policy §1, §9 | (a) satisfies WP-D1's adoption precondition (WP-D1 itself still needs B10 authorisation). (b) still blocks WP-D2, WP-D3 and Commerce scaffolding | (a) Authorised 2026-11-04; (b) before Commerce scaffolding |
+| ~~B9~~ **AUTHORIZED (narrow scope)** | Freeze change control — **AUTHORIZED by the user 2026-11-04, strictly limited.** **Authorised scope:** aligning the **stale ADR-036 status references** with ADR-036's `Accepted` status in exactly two frozen documents — `commerce/docs/architecture/07-package-architecture.md` and `commerce/docs/architecture/resolution/architecture-freeze-assessment.md`. Historical context and rationale are preserved; no unrelated frozen architectural decision is modified; the freeze is **not** reopened; the change is traceable to this authorisation. **NOT authorised by this decision:** the `07 §4` **manifest-sketch** correction (the `workspace:*` sketch), any broader architecture change, and any other frozen content — those remain pending and require their own change control. **Executed** in the two named documents only; nothing else was touched. | Commerce policy §8; roadmap WP-D1; freeze assessment §7 "Change control after the freeze" | Commerce governance (freeze change control) — **decided** | WP-D1 | The ADR-036 reference alignment (**done**). The **manifest-sketch correction still blocks WP-D1 completion** and is not covered here | Authorised 2026-11-04 |
+| ~~B10~~ **CONFIRMED** | Who authorises each work package's implementation task — **CONFIRMED by the user 2026-11-04.** The responsibility model below is now the governing rule. **An Accepted ADR does not automatically authorise implementation of a work package**; each work package still requires explicit authorisation under this model. | Roadmap §8.6/§8.7 previously left this unnamed; it is now stated | **Architecture owner** — see the model below | WP-A1…D3, WP-DOC, WP-E | Every work package | Before each package starts |
+
+### B10 responsibility model — work-package authorisation (CONFIRMED 2026-11-04)
+
+This is the governing rule for authorising work-package implementation. It resolves B10, which the documents previously left unnamed.
+
+| Role | Authority |
+|---|---|
+| **Architecture owner** | **Formally authorises each work package and approves its scope before execution.** |
+| **Repository maintainers** | Manage and verify repository changes **within the approved scope**. |
+| **Release owner** | Retains approval authority for **release-specific** activities (e.g. B6 / WP-A2, B7 / release-train sharing). |
+| **Commerce owner** | Retains approval authority for **Commerce-specific** activities (e.g. B8 / policy adoption, B9 / freeze change control). |
+
+**Rule.** An `Accepted` ADR does **not** automatically authorise implementation of a work package. Each work package still requires
+explicit authorisation by the architecture owner under this model.
+
+**Statuses are distinct and must not be used interchangeably.** A work package moves `NOT AUTHORIZED` → `AUTHORIZED` → `STARTED` →
+`COMPLETED`, and each transition is recorded separately. **Authorisation is not evidence of execution or completion.** As at this
+record, **no work package is `AUTHORIZED`, `STARTED` or `COMPLETED`**: B6 **approved** the WP-A2 *release activity* (release-owner
+gate satisfied) without authorising its implementation; A1 **confirmed** a *sequencing prerequisite* without authorising WP-B; B8
+**authorised** *policy adoption* without authorising Commerce implementation; B9 **authorised** a *narrow documentation change*, which
+was executed. Only WP-0 (acceptance/adoption) is `COMPLETED`.
+
+### C. Implementation decision (within the approved architecture, during the work package)
+
+| # | Question | Evidence and constraints | Owner | WP | Blocks | Latest point |
+|---|---|---|---|---|---|---|
+| C1 | **How stage 2 reads tarballs**: a dependency, or the system `tar` executable | See §4: requires evaluation of portability, security, deterministic behaviour, error handling, CI compatibility. **No choice is made or implied** | WP-C3 implementation owner | WP-C3 | WP-C3 only | During WP-C3 design |
+| C2 | Zero-package discovery contract details | Settled contract in ADR-035 Decision 5: roots resolving to no package directory → `CONFIGURATION-ERROR`; all packages private → `NOT-APPLICABLE` with listed reason; an empty scope is not supported by the config schema (`minItems: 1`), so there is no legitimate "empty" case to pass. Distinguishable deterministically from configuration; no new policy needed | WP-C1 implementation owner | WP-C1 | WP-C1 only | During WP-C1 |
+| C3 | Separate discovery function for the new categories vs changing shared `discover.ts` | ADR-035 Decision 6: the other engines' classification (ADR-026) assumes the name filter; they must not change silently. Smallest explicit alternative: `packages.include` | WP-C1 implementation owner | WP-C1 | WP-C1 only | During WP-C1 |
+| C4 | `optionalDependencies` / `bundledDependencies` handling | Proposed default: do not satisfy a reference; none used today | WP-C1 implementation owner | WP-C1 | Nothing | During WP-C1 |
+| C5 | Keep both `import`/`require` keys or collapse to `types`/`default` | ADR-034: equivalent; must keep `comity-normalize-package-json` condition order | WP-B implementation owner | WP-B | WP-B only | During WP-B |
+| C6 | Run the optional bundler smoke build | ADR-034 Validation 6: evidence, not a support claim; the `runtime-support.md` scoping does not depend on it | WP-B implementation owner | WP-B | Nothing | During WP-B |
+| C7 | WP-A1 execution: re-count on an up-to-date `main` containing `origin/main`, list exceptions, enumerate packages in the patch changeset | ADR-033 Decisions 4–6 and migration steps | WP-A1/A2 implementation owner | WP-A1, WP-A2 | WP-A1/A2 | During WP-A1/A2 |
+| C8 | Calibrate trigger T6 (plan-size threshold) and the triggers from first uses | `release-review.md` §5.5 | Release reviewer / release owner | WP-A2 | Nothing | After the first uses |
+
+### D. Deferred decision
+
+| # | Question | Evidence and constraints | Authority | ADR / WP | Blocks | Latest point |
+|---|---|---|---|---|---|---|
+| D1 | Deprecate old exact-pinned versions after the caret release | Old versions keep exact pins permanently either way; deprecation only adds a registry warning | Release owner (roadmap §8.2) | ADR-033 Q4 | Nothing | After WP-A2 publishes |
+| ~~D2~~ | ~~Whether the range rule covers `@comity-dev/*`~~ — **RESOLVED, no longer deferred** | See §5.3: the evidence establishes no different release policy, so ADR-033 Decision 1 applies. Migration is WP-A4 | Ratified by maintainers accepting ADR-033 (B1); no separate decision | ADR-033 "Scope of the range rule" | WP-A4 | Closed |
+| D3 | A split-release pilot | D-01: only as a separately authorised future pilot; would itself change release policy (an A-category decision when proposed) | Not named; would require the architecture owner | ADR-033 | Nothing | Only if proposed |
+| D4 | Extend `repository-ownership.md` to Commerce | It covers Development, Community and Enterprise only; ADR-036 makes no authority claim over other repositories | Maintainers | ADR-036 Q2 | Nothing | Only if wanted |
+| D5 | An explicit "empty scope" declaration in `comity.config.json` | Current schema requires at least one root; not needed by C2 | Schema owner / maintainers | WP-C1 | Nothing | Only if a repository legitimately has no packages |
+| D6 | Roadmap clarifications: §5.2 cross-reference to ADR-032's `Proposed` status | Documentation wording | Documentation owner (not named) | Roadmap | Nothing | At the next roadmap revision |
+
+## 4. Implementation choices that do not require further architectural approval
+
+These are made by the implementation owner during the stated work package, within the approved architecture. They are listed so they are
+not mistaken for approvals.
+
+- **WP-C3 tarball access (C1).** Introducing a tarball-reading dependency **or** invoking the system `tar` executable. The implementation must
+  weigh: **portability** (macOS/Linux and CI images; `tar` flavour differences); **security** (path-traversal, symlink/hardlink and special-file
+  entries, size limits, supply-chain exposure of a new dependency); **deterministic behaviour** (stable ordering and results independent of
+  the host `tar`); **error handling** (mapping failures to `CONFIGURATION-ERROR` or `TOOL-UNAVAILABLE`, never PASS); and **CI environment
+  compatibility**. **No dependency is selected or introduced here, and WP-C3 is not implemented.**
+- Zero-package discovery details (C2), the discovery function (C3), `optionalDependencies` handling (C4), export-map key shape (C5), the
+  bundler smoke build (C6), WP-A1/A2 execution details (C7), trigger calibration (C8).
+- Implementation of D-05: always-visible findings (all categories) and exit-2 precedence; this is approved, not a choice.
+
+## 5. Specific reviews
+
+### 5.1 WP-B and the first Commerce publication
+Recorded as **A1**: an architecture-owner decision because it changes release sequencing. **A1 is now CONFIRMED (2026-11-04): WP-B is a
+hard prerequisite — no Commerce package may be published before WP-B is completed.** WP-B must ensure the Commerce packages use the
+ESM-only distribution model required by ADR-034, and packaging and toolchain compatibility must be verified before the first
+publication. The distinction between approved policy (D-02), implementation in existing packages (WP-B, **NOT STARTED**) and compliant
+publication of a new Commerce package is the basis of that answer and is recorded in A1. **The confirmation does not authorise WP-B** (B10).
+
+### 5.2 Zero discovered packages
+The distinction **can** be made deterministically from repository configuration and is documented as an implementation contract (C2,
+ADR-035 Decision 5, design §2): a configured-but-empty scope is `CONFIGURATION-ERROR` (never PASS); `NOT-APPLICABLE` is used only when packages
+exist and all are private, with the private packages listed in normal output. The config schema (`minItems: 1`) offers no explicit empty scope,
+so no legitimate "empty" case exists to pass; creating one would be a separate schema decision (D5). This needs **no new policy decision**.
+
+### 5.3 `@comity-dev/*` ranges (D2)
+Kept distinct: (a) **published sibling dependencies** — the 7 `@comity-dev/*` references in comity-development are `dependencies` with
+`workspace:*` (`cli` 3, `validate` 4); (b) **development-only dependencies** — none of the 7 are `devDependencies`, and community's
+`@comity-dev/*` entries are root `devDependencies` from the registry with caret ranges; (c) **peer dependencies** — none; (d) **a separate
+release channel** — the packages are public 0.2.x versions with their own Changesets configuration; no separate channel exists in the repository
+and none is invented. **Resolution (2026-11-04, acceptance-readiness pass):** the range rule **does** extend to the `@comity-dev/*`
+published sibling dependencies. Item (d) is decisive: no separate release channel, range protocol, Changesets grouping or documented
+exemption exists in either repository, and a different namespace is not evidence of a different policy, so the same publication policy
+applies consistently. Recorded in ADR-033 "Scope of the range rule" and Decision 1; migration is roadmap **WP-A4** (P2, independent;
+not a precondition of WP-A1/WP-A2). Kept explicit: the runtime-identity defect is verified for `@comity/*` only, and the extension
+rests on publication-policy consistency, not on a reproduced identity failure in the tooling packages. Maintainers ratify the scope by
+accepting ADR-033; **no separate decision is required**, so this item is no longer classified D.
+
+### 5.4 Exact pins: policy, migration, release, cascade
+Four separate things:
+1. **Future policy** — `workspace:^` for published sibling `dependencies`/`peerDependencies` (ADR-033 Decision 1): needs formal acceptance (**B1**).
+2. **Migration of existing references** — WP-A1: re-count, exceptions, edits (**C7**, execution detail; authorised per **B10**).
+3. **Coordinated patch release** — WP-A2: release-owner approval (**B6**) and the `release-review.md` gate (**B5**); the patch does not trigger the cascade.
+4. **Default cascade for future peered minors** — D-01, approved; no decision remains. **Existing published exact pins** are immutable: older
+   versions keep them; whether to deprecate them is **D1**.
+
+### 5.5 `runtime-support.md`
+Leaving `runtime-support.md` unchanged is **intentional**. It is a standard that describes current practice (`development/AGENTS.md`: documentation
+describes the current implementation); ADR-034 and the roadmap define the target. §1 wording and the §2/§3 scoping to the `import` condition
+are scheduled **as part of WP-B** (roadmap §6) and are not made in this documentation-only closure.
+
+## 6. Dependency map (what blocks what)
+
+| Item | Must be settled before |
+|---|---|
+| ~~B1~~, ~~B5~~, ~~B6~~ **satisfied**; **B10 outstanding** | WP-A1 → WP-A2. B1/B5/B6 are done, so **only B10** (architecture-owner authorisation) remains before WP-A1 can start. **WP-A2 is APPROVED but NOT STARTED** and cannot execute until WP-A1 is authorised and completed |
+| ~~B1~~ (whose acceptance ratifies the `@comity-dev/*` scope) **satisfied**; **B10 outstanding** | WP-A4 — independent of WP-A1/WP-A2; neither blocks it nor is blocked by it |
+| ~~B2~~ **satisfied**; **B10 outstanding** | WP-B; then B7 for its release planning. **A1 (confirmed) makes WP-B a hard prerequisite of the first Commerce publication** |
+| ~~B3~~ **satisfied**; **B10 outstanding**; C1–C4 inside | WP-C1/C2/C3 (C1 only for WP-C3) |
+| ~~B4~~, ~~B8(a)~~ and the ~~B9~~ ADR-036-reference part **satisfied**; **B10 outstanding**; B9's manifest-sketch change control **outstanding** | WP-D1 |
+| **B8(b)** (repository, namespace, `repository.type` — **still open**), WP-C1/C3 or equivalent | WP-D2/WP-D3, Commerce scaffolding |
+| ~~**A1**~~ **CONFIRMED** | **Settled.** WP-B **completion** now precedes the "first Commerce package publication" milestone; WP-D3's `require` leg is designed against the confirmed prerequisite |
+| WP-A2, **WP-B (A1: hard prerequisite)**, WP-C1/C2/C3, WP-D1, WP-D3 | First Commerce package publication (roadmap §4) |
+| ADR-032 acceptance, Order design review, Community sign-off | Order Phase A (independent of all the above; none of WP-A/B/C is a prerequisite) |
+
+No item above blocks the documentation-only work already done. **A1 is now confirmed** and does not block WP-A, WP-B or WP-C from starting
+once authorised; it constrains only the **first Commerce publication** milestone, which now requires WP-B to be **completed** first.
+
+## 7. F-02 historical provenance (consistent with roadmap §9)
+
+The historical provenance gap is **unresolved and permanent**; nothing here reconstructs it. The rewritten roadmap §9 separates (1) facts verifiable
+now (Commerce `6c01ab6` is one commit of six documentation files; Development `a208100` is one commit of eleven documentation files under a message
+naming only ADR-035; neither touches a manifest, lockfile, source, CI or Changesets file; the Phase A gate is verifiable from current document
+text), (2) information only partially reconstructable (the commit grouping and timestamps; an earlier prose classification of edits kept only as
+a prior assertion), and (3) provenance no longer verifiable (per-hunk authorship, edit time and order, whether the Phase A correction predated the
+dependency-policy work, the accuracy of earlier attributions). A clean working tree does not establish provenance. No decision depends on it.
+
+## 8. Documentation updated, and deliberately unchanged
+
+**Updated (documentation only):** Development — ADR-022 (conditional note only), ADR-033, ADR-034, ADR-035, ADR-036, `release-review.md`,
+`packages/validate/docs/declaration-dependencies-design.md`, `docs/architecture/dependency-remediation-roadmap.md` (§8, §9 and table rows), this
+record, and a post-resolution note in the maintainer review. Community — `docs/architecture/repository.md`, `SKILL.md`, `docs/.documentation/AGENT.md`.
+Commerce — `docs/governance/package-dependency-policy.md` (the Commerce namespace stays **[OPEN]**).
+**Updated by the acceptance-readiness pass (2026-11-04, documentation only):** ADR-033 (Decision 1 scope, new "Scope of the range
+rule" section, "Acceptance status and remaining questions" replacing "Open questions", Scope); ADR-034, ADR-035, ADR-036 (the same
+"Acceptance status" restructuring, separating maintainer acceptance from release-time approvals, implementation choices and deferred
+items); the roadmap (§1 row A, §2 WP-A4, §8.6) and this record (§2 D-01 row, §3 D2, §5.3, §6). No ADR status was changed; all four
+remain `Proposed`. No manifest, source, CI, workflow or Changesets file was touched, and nothing was implemented.
+**Updated by the governance-closure pass (2026-11-04, documentation and governance only):** this record (header, §3 A1/B6/B8/B9/B10
+rows, the new "B10 responsibility model" subsection, §5.1, §6, §8), the roadmap (§2 work-package rows and the new **WP-E**, §4 sequencing
+and milestone table, §8), ADR-034 and ADR-036 (their A1 sequencing statements), and the Commerce policy (header, §8, §9). **Under the B9
+authorisation only**, the two frozen Commerce documents received the ADR-036 reference alignment:
+`commerce/docs/architecture/07-package-architecture.md` and `commerce/docs/architecture/resolution/architecture-freeze-assessment.md`.
+**No work package was authorised, started or completed.** No manifest, source, lockfile, CI, workflow, script or tooling file was
+touched, and the pnpm migration (**WP-E**) was **NOT STARTED**.
+**Deliberately unchanged:** `runtime-support.md` (WP-B), `queue-pg-boss` package docs (WP-B), `repository-ownership.md` (D4), the independent
+review (byte-identical), ADR-032, the Order design, and all Commerce freeze documents **except** the two ADR-036 reference alignments
+authorised by B9 — in particular the `07 §4` **manifest sketch was NOT corrected**, because that change is outside B9's authorised scope.
+
+## 9. ADR status: closure pass and formal acceptance
+
+| Document | Before closure pass | After closure pass | After formal acceptance (2026-11-04) |
+|---|---|---|---|
+| ADR-022 | Accepted | Accepted (conditional note; text preserved) | **Accepted** — conditional note converted to a **definitive pointer** to ADR-034; historical text preserved, unrewritten |
+| ADR-032 | Proposed | Proposed | Proposed (unchanged; not part of this work) |
+| ADR-033 | Proposed | Proposed (contents revised) | **Accepted** — Decision 1 scope (incl. `@comity-dev/*`), cascade default, coordinated patch release as a separate activity, no deprecation schedule |
+| ADR-034 | Proposed | Proposed (contents revised) | **Accepted** — ESM-only for every package; ADR-022 partially superseded. Semver class deferred to WP-B's release |
+| ADR-035 | Proposed | Proposed (contents revised) | **Accepted** — severity `error` from day one (Decision 9 guard preserved); `typescript` a runtime `dependency` of `@comity-dev/validate` |
+| ADR-036 | Proposed | Proposed (contents revised) | **Accepted** — verification baseline **pnpm 12.16.1 / Node 24+** (superseding the pnpm 10.13.x proposal) |
+| `release-review.md` | Proposed | Proposed | **Adopted** — mandatory for every `Version Packages` PR; full review only on triggers T1–T6; WP-A2 the recommended pilot |
+
+**Acceptance authorises no work package.** WP-A1, WP-A2, WP-A4, WP-B, WP-C1/C2/C3 and WP-D1/D2/D3 each still require their own
+implementation authorisation (**B10**), and WP-A2 additionally requires release-owner approval (**B6**).
+
+## 10. Unresolved contradictions that prevented closure
+
+None. The one question that materially changes sequencing and that the approved decisions do not answer is recorded as **A1**; it is an open
+decision, not a contradiction between documents.

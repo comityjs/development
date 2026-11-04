@@ -1,6 +1,11 @@
 # Dependency Remediation Roadmap — Comity / Commerce
 
-**Status:** Proposed planning document. **Date:** 2026-11-04. **Owner:** comity-development.
+**Status:** Proposed planning document. **Date:** 2026-11-04 (revised for architecture-owner decisions D-01…D-08, recorded in
+`docs/standards/reviews/dependency-policy-decision-resolution.md`; updated the same day for the **formal maintainer acceptance of
+ADR-033…036** and the **adoption of `release-review.md`**). **Owner:** comity-development.
+**ADR-033, ADR-034, ADR-035 and ADR-036 are `Accepted` (2026-11-04); `release-review.md` is adopted (2026-11-04).** Acceptance and
+adoption are **governance actions only — they authorise no work package.** The architecture-owner decisions D-01…D-08 likewise
+authorise none.
 **Authorisation:** documentation and planning only. **No source-code, manifest, build, CI, Changesets or validator change is authorised by this document or by the
 ADRs it references.** Each work package below needs its own implementation task and the approvals listed in §8.
 
@@ -8,21 +13,26 @@ ADRs it references.** Each work package below needs its own implementation task 
 
 | Owner direction (2026-11-04) | Recorded in | Status |
 |---|---|---|
-| A. `workspace:^` for internal sibling references; coordinated patch release; mandatory `Version Packages` review gate | ADR-033; `docs/standards/release-review.md` | Proposed |
-| B. One ESM build serves `import` and Node `require`; stop `dist/cjs`; amend ADR-022's distribution paragraph | ADR-034 | Proposed |
-| C. New `@comity-dev/validate` engine on built `.d.ts`; error severity; `typescript` as runtime dependency | ADR-035; `packages/validate/docs/declaration-dependencies-design.md` | Proposed / Draft |
-| D. Commerce → Comity dependency policy (peer + dev / dependencies / dev-only / none, per package) | ADR-036 (Comity-wide); `commerce/docs/governance/package-dependency-policy.md` | Proposed |
-| E. Local development with packed tarballs and `pnpm.overrides` | ADR-036 §3; Commerce policy §6 | Proposed |
-| F. Clean-consumer verification before publishing | ADR-036 §4; Commerce policy §7 | Proposed |
+| A. `workspace:^` for internal sibling references — scoped to **every published sibling dependency under Comity governance** (`@comity/*` in community, `@comity-dev/*` in development, and consuming repositories under ADR-036); coordinated patch release; Changesets peer-major cascade accepted as the default release strategy (D-01); mandatory `Version Packages` review, trigger-based (D-07) | ADR-033; `docs/standards/release-review.md` | **ADR-033 Accepted** (2026-11-04); **`release-review.md` Adopted** (2026-11-04) |
+| B. One ESM build for **every** Comity package including CLI and `queue-pg-boss`; `import` and Node 24+ `require(esm)` resolve to it; stop `dist/cjs`; supersede ADR-022's distribution paragraph (D-02) | ADR-034; ADR-022 (partially superseded) | **ADR-034 Accepted** (2026-11-04); ADR-022 remains `Accepted` — definitive supersession pointer in place, historical text preserved. **Not implemented** (`comity-build` still emits `dist/cjs`) |
+| C. `@comity-dev/validate`: stage 1 workspace declaration validation and stage 2 tarball validation (D-03); name-agnostic deterministic discovery (D-04); missing-build `CONFIGURATION-ERROR` and always-visible findings (D-05); `typescript` as runtime dependency | ADR-035; `packages/validate/docs/declaration-dependencies-design.md` | **ADR-035 Accepted** (2026-11-04, with severity `error` and `typescript` as a runtime dependency); design document Draft; **none implemented** |
+| D. Comity-wide dependency policy for packages outside community (peer + dev / dependencies / dev-only / none, per package), enforced locally per repository (D-08) | ADR-036; `commerce/docs/governance/package-dependency-policy.md` | **ADR-036 Accepted** (2026-11-04, verification baseline pnpm 12.16.1 / Node 24+); Commerce policy `Proposed` — **adoption AUTHORIZED** by the Commerce owner (B8(a), 2026-11-04); operative effect awaits **B8(b)** (repository/namespace/`repository.type`, still OPEN) and **WP-D1** (NOT AUTHORIZED) |
+| E. Local development with packed tarballs and `pnpm.overrides` | ADR-036 §3; Commerce policy §6 | **ADR-036 Accepted**; documented policy only — not enforced, no job exists |
+| F. Clean-consumer verification before publishing, **separate from** producer declaration/tarball validation (D-06) | ADR-036 §4; Commerce policy §7 | **ADR-036 Accepted**; documented policy only — no clean-consumer job exists in any repository |
 
 **Facts that shaped the formalisation (verified 2026-11-04):**
 
 - ADR-022's dual ESM/CJS paragraph is **scoped to the two CLI packages** and states it is independent of "the repository-wide CJS
-  compatibility contract". That contract is not an ADR; it is stated in `community/docs/architecture/repository.md`, `community/SKILL.md` and
-  `community/docs/.documentation/AGENT.md`. ADR-034 therefore amends ADR-022's paragraph **and** replaces the repository-wide convention.
+  compatibility contract" (and that the CLI architecture does not require CJS). That contract is not an ADR; it is described in
+  `community/docs/architecture/repository.md`, `community/SKILL.md` and `community/docs/.documentation/AGENT.md`. ADR-034 therefore
+  supersedes ADR-022's paragraph (in part) **and** replaces the repository-wide convention, for every package including the CLI packages.
+- **Terminology (ADR-034):** Comity supports ESM distribution (one ESM build) and Node 24+ `require(ESM)` compatibility; it does not support CommonJS modules or builds. The `require` condition resolves to the same ESM file as `import`; the old `dist/cjs` tree was CommonJS-syntax output evaluated as ESM, never a working CommonJS build.
+- `@comity/queue-pg-boss` is the only community package with no `require` condition and no `main` (53 of 54 route `require` to `dist/cjs`);
+  its docs describe a deliberate ESM-only workaround for the same defect. ADR-034 makes it conform to the uniform export map (no exception).
+  The eight `@comity-dev/*` packages already have no `require` condition and no `dist/cjs`.
 - ADR-010 requires gradual enforcement only for rules with migration backlog; the declaration rule has none (prototype: zero findings), so error severity is consistent with it.
-- `community` is on `feature/acl-casl-fields` at `0e2bb15`, **behind `origin/main`** (`3391f94`, which published `acl@0.9.2`, `acl-casl@0.10.0`). All implementation branches start from `origin/main`.
-- Changesets in comity-community assigns a **major** to every peer dependent when a peered package gets a minor/major release. A patch does not (verified).
+- As of 2026-11-04 the local `community` checkout (`feature/commerce`, `91f5de1`) **contains** `origin/main` (`3391f94`, which published `acl@0.9.2`, `acl-casl@0.10.0`) and is one documentation commit ahead of it. (This replaces an earlier statement that it was behind.) Implementation branches start from an up-to-date `main` that contains `origin/main`.
+- Changesets in comity-community assigns a **major** to every peer dependent when a peered package gets a minor/major release. A patch does not (verified). **D-01: the cascade is the accepted default**; a split release (`changeset version --ignore`) is not adopted and is possible only as a separately authorised pilot (it needs a script/workflow change and publishes an untested peer/dependent window).
 - `require(esm)` loads all 123 export entries of the 54 packages with no warning on Node 24.0.0, 24.4.0 and 24.19.0. Bundlers and non-Node runtimes are untested.
 
 ## 2. Work packages
@@ -31,17 +41,20 @@ Sizes are relative (S/M/L). Priority: **P0** correctness blocker; **P1** require
 
 | ID | Work package | Repo | Priority | Size | Depends on | Acceptance |
 |---|---|---|---|---|---|---|
-| WP-0 | Review and accept (or amend) ADR-033…036; record `release-review.md` adoption | development | P0 | M | maintainers | Statuses updated by maintainers (not by agents) |
-| WP-A1 | Migrate sibling references to `workspace:^` (§3) | community | **P0** | M | WP-0 (ADR-033) | Re-counted from `origin/main`; exceptions listed; no `workspace:*` left in sibling `dependencies`/`peerDependencies` except recorded exceptions |
-| WP-A2 | Coordinated patch release of every package with a sibling edge | community | **P0** | M | WP-A1, release-review gate | Packed manifests carry `^<version>`; clean-consumer checks of ADR-033 pass |
-| WP-B | Remove `dist/cjs`; serve ESM to `require`; tests on tarballs; update docs | development (`comity-build`) + community (export maps) | **P0**, Independent | M | WP-0 (ADR-034) | ADR-034 validation requirements 1–5 pass on Node 24.0.0 and current 24.x |
-| WP-C1 | Implement `declaration-dependencies` engine and tests | development | P1, Independent | M | WP-0 (ADR-035) | Design §10 tests pass; **zero findings** on the current comity-community build |
-| WP-C2 | Release `@comity-dev/validate` (minor); bump consumers; add to CI after build | development, community | P1 | S | WP-C1 | CI runs the engine after `pnpm build` |
-| WP-D1 | Adopt Commerce policy; amend 07 §4 sketch under freeze change control | commerce | P1 | S | ADR-036 accepted | Sketch corrected; freeze record updated |
+| WP-0 | ~~Review and accept (or amend) ADR-033…036; record `release-review.md` adoption~~ **Complete 2026-11-04:** ADR-033…036 all `Accepted`; `release-review.md` adopted | development | **Done** | — | maintainers | Statuses updated by maintainers (not by agents) — done. **Acceptance authorises no other work package** |
+| WP-A1 | Migrate sibling references to `workspace:^` (§3) | community | **P0** | M | WP-0 (ADR-033) | Re-counted on the up-to-date `main` base (which contains `origin/main`); exceptions listed; no `workspace:*` left in sibling `dependencies`/`peerDependencies` except recorded exceptions |
+| WP-A2 | Coordinated patch release of every package with a sibling edge — **APPROVED for execution** (B6, release owner, 2026-11-04); scope and conditions **unchanged** | community | **P0** | M | WP-A1, release-review gate | Packed manifests carry `^<version>`; clean-consumer checks of ADR-033 pass. **Status: APPROVED, NOT STARTED.** Execution is blocked by **WP-A1**, which is **NOT AUTHORIZED** (B10). The B6 approval covers this release activity only — not unrelated releases and no scope expansion |
+| WP-A4 | Migrate the **7** `@comity-dev/*` sibling `dependencies` to `workspace:^` and release them (ADR-033 "Scope of the range rule": `cli` 3, `validate` 4) | development | P2, Independent | S | WP-0 (ADR-033) | Re-counted; no `workspace:*` left in `@comity-dev/*` sibling `dependencies` except recorded exceptions; packed manifests carry `^<version>`. **Not** a precondition of WP-A1 or WP-A2 |
+| WP-B | Remove `dist/cjs`; one uniform `import`/`require` → ESM export map for **all** packages **including CLI packages and `queue-pg-boss`** (no exception); tests on tarballs; update docs, incl. `queue-pg-boss` docs and `runtime-support.md` §1–§3 | development (`comity-build`) + community (export maps) | **P0**, Independent | M | WP-0 (ADR-034) | ADR-034 validation requirements 1–5 pass on Node 24.0.0 and current 24.x for every package. **Status: NOT AUTHORIZED, NOT STARTED.** **A1 (CONFIRMED 2026-11-04): WP-B is a hard prerequisite — no Commerce package may be published before WP-B is completed.** WP-B must ensure the Commerce packages use the ESM-only distribution model required by ADR-034, and packaging and toolchain compatibility must be verified before the first publication. **The A1 confirmation does NOT authorise WP-B** (B10) |
+| WP-C1 | Implement stage 1 workspace `declarations` engine, deterministic name-agnostic discovery, always-visible findings, and tests | development | P1, Independent | M | WP-0 (ADR-035) | Design §10 tests pass; **zero findings** on the current comity-community build, with total and reachable counts reported separately |
+| WP-C2 | Release `@comity-dev/validate` (minor); bump consumers; add stage 1 to CI after build | development, community | P1 | S | WP-C1 | CI runs the engine after `pnpm build` |
+| WP-C3 | Implement stage 2 `packed-surface` (tarball) validation (design §12); add to release CI before publication | development, community | P1 (before first Commerce publication) | M | WP-C1 | Design §12 tests pass; validates `files`/`exports` effects on real tarballs |
+| WP-D1 | Adopt Commerce policy; amend 07 §4 sketch under freeze change control | commerce | P1 | S | ADR-036 `Accepted` (done); **B8(a)** adoption authorised (done); **B9** ADR-036 reference alignment (done) | **Status: NOT AUTHORIZED, NOT STARTED.** Adoption is authorised (B8a) and the two frozen documents' ADR-036 references are aligned (B9). The **`07 §4` manifest sketch is still uncorrected** — that change is **outside B9's authorised scope** and needs its own freeze change control. WP-D1 completion still requires the sketch correction plus **B10** authorisation |
 | WP-D2 | Document local tarball workflow in the Commerce repository when it exists | commerce | P2 | S | Commerce repository approved | Procedure of policy §6 reproducible |
-| WP-D3 | Commerce clean-consumer CI job | commerce | P1 (before first publication) | L | Commerce workspace, WP-C1 or equivalent script | Policy §7 job passes and its negative controls fail as designed |
+| WP-D3 | Commerce producer validation (stages 1–2 or equivalent script, run in the Commerce workspace) **and** a separate clean-consumer CI job (fresh directory; does not invoke the validator) | commerce | P1 (before first publication) | L | Commerce workspace; WP-C1/WP-C3 or equivalent script | Policy §7 jobs pass and their negative controls fail as designed |
 | WP-DOC | Documentation corrections on acceptance (§6) | development, community | P2 | S | ADR acceptances | Docs state the implemented behaviour |
-| WP-A3 | Peer-major cascade decision (escalation path of the gate) | development | P0 *when a peered Core Module needs a minor* | S | maintainers | Recorded decision (accept, split release, or separate design) |
+| WP-A3 | ~~Peer-major cascade decision~~ **Closed by D-01:** the cascade is the default. A split-release **pilot** (script/workflow change, real-graph rehearsal, window handling, published-combination verification) remains an optional, separately authorised future work package | development | Optional | — | separate authorisation | Not required for any other work package |
+| WP-E | **pnpm 12.16.1 toolchain migration** — a **separate coordinated activity** across **all three** repositories (community, development, commerce). Eventual scope, as applicable: `packageManager` declarations; lockfiles; CI configurations; GitHub Actions and other workflows; scripts and build tooling; repository configuration; documentation; and **compatibility plus clean-install verification in every repository** | community, development, commerce | Independent | L | **Its own scoped work package and explicit B10 authorisation** | **Status: NOT AUTHORIZED, NOT STARTED — recorded only.** The user has confirmed pnpm 12.16.1 as the intended version and that all three repositories must eventually be migrated; **nothing was migrated by this record.** No manifest, lockfile, CI, workflow, script, tooling or source file was changed, and no dependency was installed. Both monorepos still pin `packageManager: pnpm@10.13.1` with lockfile v9.0; ADR-036 §4b records that the verification baseline (pnpm 12.16.1 / Node 24+) and the pinned toolchain differ until WP-E lands. **This roadmap entry does not authorise the migration** |
 
 ## 3. WP-A1 — migration scope (verified count)
 
@@ -111,16 +124,22 @@ Expected result after publication of a coordinated patch where every sibling is 
 
 ```text
 WP-0 (acceptances) ─┬─► WP-A1 ─► [release-review gate] ─► WP-A2  ─┐
-                    ├─► WP-B  (Independent; patch)  ───────────────┤  may share one release train with A2
+                    ├─► WP-B  (Independent; patch)  ───────────────┤  may share one release train with A2 (B7)
                     └─► WP-C1 ─► WP-C2 (Independent; guards A1/B)  │
-ADR-036 accepted ───► WP-D1 ─► (Commerce repository approved) ─► WP-D2 ─► WP-D3 ─► first Commerce publication
-WP-A2 ─────────────────────────────────────────────────────────────► first Commerce publication
+ADR-036 accepted ───► WP-D1 ─► (Commerce repository approved) ─► WP-D2 ─► WP-D3 ─┐
+WP-A2 ───────────────────────────────────────────────────────────────────────────┤
+WP-B COMPLETED (A1: CONFIRMED hard prerequisite) ────────────────────────────────┴─► first Commerce publication
 ```
 
-- **WP-C before or alongside WP-A1/WP-B.** It has zero current findings, so it blocks nothing, and it guards the other two. Preferred order of implementation:
-  **WP-C1 → WP-A1 → WP-B**, delivered as separate PRs.
-- **WP-B independent of WP-A.** It touches `comity-build` and export maps only. Ship it as a **patch** (ADR-034) to avoid the peer-major cascade. It may share one
+- **WP-C before or alongside WP-A1/WP-B.** Stage 1 has zero baseline findings, so it blocks nothing, and it guards the other two. Preferred order of implementation:
+  **WP-C1 → WP-A1 → WP-B**, delivered as separate PRs. Stage 2 (WP-C3) is needed before publications whose tarball surface must be validated and before the first Commerce publication.
+- **WP-B independent of WP-A.** It touches `comity-build` and export maps only. Ship it as a **patch** (ADR-034): a peered package's minor would release its adapters as `1.0.0` under the accepted cascade (D-01), so the semver class is deliberate. It may share one
   release train with WP-A2 if both pass their tarball verification; otherwise ship separately. This is the release owner's call.
+- **WP-B is a hard prerequisite for the first Commerce publication (A1, CONFIRMED 2026-11-04).** **No Commerce package may be published
+  before WP-B is completed.** WP-B must ensure the Commerce packages use the ESM-only distribution model required by ADR-034, and
+  packaging and toolchain compatibility must be verified before the first publication. This constrains **only** the Commerce
+  first-publication milestone: it does not gate WP-A, WP-B or WP-C from starting once authorised under B10, and **the confirmation
+  itself authorises no work package**.
 - **Coordinated release (WP-A2):** all packages with sibling edges in **one** `Version Packages` PR, patch only (a patch does not trigger the peer-major rule).
 - **Phase A is not blocked.** The `@comity/order` extension (ADR-032, authorisation pending) needs none of these work packages. Publishing `@comity/order@0.10.0` after WP-A2
   is recommended so that it ships caret ranges; if it is published first, consumers rely on `pnpm.overrides` until the next release. Nothing here changes Phase A's authorisation status.
@@ -130,14 +149,14 @@ WP-A2 ────────────────────────�
 |---|---|
 | Phase A (`@comity/order` implementation) | none of these |
 | Commerce workspace scaffolding | repository, namespace and ownership decisions (freeze #1–#3); ADR-036 accepted |
-| First Commerce package **publication** | WP-A2, WP-C1/C2 (or equivalent script), WP-D1, WP-D3; WP-B only if Commerce promises CommonJS |
-| Comity-wide package publication correctness | WP-A1/A2, WP-B, WP-C |
+| First Commerce package **publication** | **WP-B COMPLETED (A1 — CONFIRMED hard prerequisite)**, WP-A2, WP-C1/C2 and WP-C3 (or an equivalent producer-side script), WP-D1, WP-D3 (producer validation and a separate clean-consumer job). ADR-034 applies to every Comity package, so Commerce packages follow the same ESM-only contract and the `require` leg of the clean-consumer job is unconditional. **A1 was CONFIRMED by the architecture owner on 2026-11-04: no Commerce package may be published before WP-B is completed**; WP-B must ensure the Commerce packages use ADR-034's ESM-only distribution model, and packaging and toolchain compatibility must be verified before the first publication (decision-resolution record §3 A1) |
+| Comity-wide package publication correctness | WP-A1/A2, WP-B, WP-C (C1–C3) |
 
 ## 5. Release plan detail
 
 1. **WP-A2.** One changeset listing every package in §3 as `patch` (the explicit list is required because a sibling patch no longer cascades to `workspace:^` dependents).
    Review the generated PR under `release-review.md`; inspect packed manifests; run the clean-consumer checks of ADR-033; publish.
-2. **WP-B.** A patch changeset per package whose export map changes, or a shared one. Validation per ADR-034 on packed tarballs before publishing.
+2. **WP-B.** A patch changeset per package whose export map changes (all 54 community packages, including `queue-pg-boss`), or a shared one. Validation per ADR-034 on packed tarballs before publishing.
 3. **Recovery** (all): forward-only. Move the `latest` dist-tag back, `npm deprecate` the faulty versions, publish a corrective patch (ADR-033). Prepare the commands and message before merging the release PR.
 4. **Old exact-pinned versions** remain on the registry; whether to deprecate them after WP-A2 is an owner decision (ADR-033 open question 4).
 
@@ -148,19 +167,21 @@ implemented or accepted, not before:
 
 | Document | Correction | Trigger |
 |---|---|---|
-| `development/docs/standards/adapters.md` §13 | `workspace:*` examples and wording → `workspace:^`; range rule | ADR-033 accepted |
-| `development/docs/standards/runtime-support.md` §1 | Node `require()` of the ESM build; verified Node range; limitations | ADR-034 implemented |
-| `development/docs/standards/decisions/ADR-022-…md` | One-line "Amended by ADR-034" pointer (text otherwise unchanged) | ADR-034 accepted |
+| `development/docs/standards/adapters.md` §13 | `workspace:*` examples and wording → `workspace:^`; range rule | **ADR-033 accepted — trigger met 2026-11-04; applied the same day.** §13 now states the accepted range rule **and** records that existing manifests still use `workspace:*` until WP-A1 migrates them, so the standard does not misdescribe current practice |
+| `development/docs/standards/runtime-support.md` §1 | Node `require()` of the ESM build; verified Node range; limitations | **WP-B** (updated as part of WP-B, not before: the standard describes current practice) |
+| `development/docs/standards/decisions/ADR-022-…md` | A conditional note is already present; on acceptance convert it to a final pointer (text otherwise unchanged; history preserved) | **ADR-034 accepted — DONE 2026-11-04.** Definitive pointer in place; ADR-022's historical text preserved and its status unchanged |
+| `development/docs/standards/runtime-support.md` §2, §3 | Scope the Edge/Workers and browser claims to the `import` condition; state `require`/`main` is unverified outside Node; no Node 24 requirement is placed on Edge/Workers/browser consumers | **WP-B** (same; deliberately unchanged in the documentation-only closure) |
+| `community/packages/queue-pg-boss/docs/overview.md`, `docs/conventions.md` | Remove the "ESM-only until the shared build emits scope markers" exception text | ADR-034 implemented |
 | `community/docs/architecture/repository.md` (line 211), `community/SKILL.md` (line 132), `community/docs/.documentation/AGENT.md` (line 41) | Replace "dual ESM/CJS" wording | ADR-034 implemented |
 | `development/docs/standards/architecture-validation.md` | Mention the declaration rule family | ADR-035 implemented |
 | `development/packages/validate/README.md` | Document the new category | ADR-035 implemented |
-| `commerce/docs/architecture/07-package-architecture.md` §4 | Correct the manifest sketch | ADR-036 accepted (note already added) |
+| `commerce/docs/architecture/07-package-architecture.md` §4 | Correct the manifest sketch | **ADR-036 accepted — trigger met 2026-11-04.** Under the **B9** authorisation the document's **ADR-036 status reference has been aligned** to `Accepted`, marked `[CHANGE CONTROL — 2026-11-04, B9]` (the same authorisation aligned `resolution/architecture-freeze-assessment.md` §5 item 4 and logged the exercise in its §7). **The manifest sketch itself was NOT corrected** — that is outside B9's authorised scope and remains a separate freeze change-control action for WP-D1 |
 
 ## 7. Risks and compatibility summary
 
 | Risk | Mitigation |
 |---|---|
-| A peered Core Module minor releases all its adapters as `1.0.0` | `release-review.md` §3.2 and §4 block it; escalate under WP-A3 |
+| A peered Core Module minor releases all its adapters as `1.0.0` | Accepted by D-01. `release-review.md` §5.1 requires each peer-driven major to be classified, labelled and explained in release notes (`1.0.0` is one-way); a split-release pilot is optional and separately authorised |
 | Caret floors ratchet: consumers must move siblings together | Coordinated release; release notes |
 | Old exact pins persist for mixed old/new graphs | Documented; `pnpm.overrides`; optional deprecation |
 | Bundlers or non-Node runtimes relying on `dist/cjs` | Not claimed; optional smoke test; patch release with notes |
@@ -169,42 +190,98 @@ implemented or accepted, not before:
 | Commerce peer ranges too narrow under 0.x | Expected; widen only after verification on both minors |
 | Implementing from the stale local checkout | Start from `origin/main` |
 
-## 8. Approvals still required (none given by this document)
+## 8. Approvals and decisions still required (none given by this document)
 
-1. Maintainer review and acceptance of ADR-033, ADR-034, ADR-035, ADR-036 and adoption of `release-review.md` (status changes are made by maintainers).
-2. Release owner: the coordinated patch release; whether WP-B shares its release train; deprecation of exact-pinned versions.
-3. Semver class of the ESM change (patch proposed).
-4. How a peer-driven major is handled when a peered Core Module needs a minor (WP-A3).
-5. Commerce owner: ADR-036 adoption; repository, namespace and ownership (freeze decisions #1–#3, unchanged by this work).
-6. Separate implementation authorisation for each work package.
+Architecture-owner decisions D-01…D-08 are recorded in `docs/standards/reviews/dependency-policy-decision-resolution.md`. **Formal
+maintainer acceptance of ADR-033…036 and adoption of `release-review.md` occurred on 2026-11-04**; neither the architecture-owner
+decisions nor that acceptance **authorises any work package**. Each outstanding item is classified in that record (A architecture-owner,
+B maintainer governance, C implementation, D deferred) with its authority and latest decision point. In summary:
 
-## 9. Scope confirmation
+1. **Maintainer governance (B):** ~~formal acceptance of ADR-033, ADR-034, ADR-035, ADR-036; adoption of `release-review.md`; the
+   pnpm/Node verification target~~ — **done 2026-11-04**. All four ADRs are `Accepted`, the standard is adopted, and the verification
+   baseline is confirmed as **pnpm 12.16.1 / Node 24+** (superseding the earlier pnpm 10.13.x proposal). **Still outstanding:** the
+   **semver class** of the ESM change (patch proposed) — decided at WP-B's release, not at acceptance.
+2. **Release owner (B):** ~~the coordinated patch release (WP-A2)~~ — **APPROVED 2026-11-04 (B6)**; the release-owner gate for WP-A2 is
+   **SATISFIED**, with scope and conditions preserved unchanged and no authorisation for unrelated releases or scope expansion. WP-A2 is
+   **APPROVED, NOT STARTED** — blocked by WP-A1, which is **NOT AUTHORIZED** (B10). **Still outstanding:** whether WP-B shares its
+   release train (**B7**).
+3. **Architecture owner (A):** ~~whether WP-B must precede the first Commerce package publication~~ — **CONFIRMED 2026-11-04 (A1): YES,
+   WP-B is a hard prerequisite** (see §4 milestone table). No Commerce package may be published before WP-B is completed. **The
+   confirmation does not authorise WP-B.**
+4. **Commerce owner (B):** ~~ADR-036 adoption~~ — **AUTHORIZED 2026-11-04 (B8a)**; freeze change control for the ADR-036 reference
+   alignment — **AUTHORIZED 2026-11-04 (B9**, narrow scope, executed in the two named frozen documents**)**. **Still outstanding:**
+   repository, namespace and `repository.type` (**B8(b)**, freeze decisions #1–#3, unchanged by this work) and B9's `07 §4`
+   **manifest-sketch** change control, which is outside B9's authorised scope.
+5. **Implementation owners (C), within WP-C1/C3/B:** tarball reading method, zero-package discovery contract details, `optionalDependencies`
+   handling, export-map key shape, bundler smoke build.
+6. **Deferred (D):** deprecation of old exact-pinned versions (a registry-maintenance concern, decided after WP-A2 publishes; no
+   schedule is proposed); a split-release pilot; extending `repository-ownership.md` to Commerce. ~~Extension of the range rule to
+   `@comity-dev/*`~~ is **no longer deferred**: ADR-033's "Scope of the range rule" resolves it — Decision 1 applies to those 7
+   published sibling references, because the verified evidence establishes no different release policy. Its migration is WP-A4.
+7. **Separate implementation authorisation for each work package — B10 CONFIRMED 2026-11-04.** The **architecture owner** formally
+   authorises each work package and approves its scope before execution; **repository maintainers** manage and verify repository changes
+   within the approved scope; the **release owner** retains approval authority for release-specific activities; the **Commerce owner**
+   retains approval authority for Commerce-specific activities. An `Accepted` ADR does **not** automatically authorise implementation of a
+   work package. **As at this record no work package is `AUTHORIZED`, `STARTED` or `COMPLETED`** — the sole exception is WP-0
+   (`COMPLETED`). See the decision-resolution record's "B10 responsibility model".
+8. **pnpm 12.16.1 toolchain migration (WP-E)** — recorded in §2 as a **separate coordinated activity** across all three repositories.
+   pnpm 12.16.1 is confirmed as the intended version and all three repositories must eventually be migrated. **Status: NOT AUTHORIZED,
+   NOT STARTED.** It requires its own scoped work package and explicit authorisation under B10. **Nothing was migrated by this document**,
+   and no manifest, lockfile, CI, workflow, script or tooling file was changed.
 
-Created by this documentation task: ADR-033, ADR-034, ADR-035, ADR-036, `docs/standards/release-review.md`, this roadmap, the
-validator design document, and the Commerce policy document.
+## 9. Provenance and scope record
 
-The Commerce working tree (vs HEAD `40c187e`) is described below as it actually is, not reduced to "two minimal cross-reference
-edits". The exact author/pass of each uncommitted change cannot be reconstructed from the working tree alone; where a change is a
-documented correction, that is stated.
+This section was rewritten on 2026-11-04. It replaces an earlier "scope confirmation" that described the Commerce *working tree* against
+HEAD `40c187e`; that framing is obsolete (the changes were committed) and it attributed individual edits to tasks in a way Git cannot
+corroborate. It does not infer authorship or intent, and it does not reconstruct history. It separates three kinds of statement.
 
-| File | Working-tree change (vs HEAD) |
-|---|---|
-| `docs/architecture/07-package-architecture.md` | §4 dependency-fields note pointing at the governance policy and ADR-036 (cross-reference) |
-| `docs/architecture/12-implementation-roadmap.md` | Phase A status `READY TO START` → `DESIGN READY — IMPLEMENTATION AUTHORIZATION PENDING` |
-| `docs/architecture/README.md` | Phase A status: implementation authorization pending (ADR-032 + DESIGN.md + Community review) |
-| `docs/architecture/resolution/architecture-freeze-assessment.md` | Freeze-record Phase A authorization gate, plus the open governance-decision register #1–#6 (item #4 points at ADR-036 and the governance policy) |
-| `docs/architecture/resolution/final-freeze-report.md` | Phase A status corrected to design-ready / authorization pending (header and §11) |
-| `docs/governance/package-dependency-policy.md` (untracked) | New Commerce application of ADR-036 |
+### 9.1 Verifiable from current repository state
 
-The dependency-remediation task's own Commerce edits are the cross-references: the 07 §4 note and the governance-decision register
-(whose item #4 points at ADR-036 and the governance policy). The Phase A status changes in the README, implementation roadmap,
-freeze assessment and final freeze report are the freeze record's own "Correction 2026-11-04" (an earlier text read
-"Phase A: READY TO START"; that was premature because `@comity/order` is a Comity-owned, published Core Module). They are present
-in the working tree but are not attributed to this documentation task.
+- Commerce `main` is at `6c01ab6`; its parent is `40c187e` ("architecture freeze"). `6c01ab6` is a **single commit** touching exactly six
+  files: `docs/architecture/07-package-architecture.md`, `12-implementation-roadmap.md`, `README.md`,
+  `resolution/architecture-freeze-assessment.md`, `resolution/final-freeze-report.md`, and the new `docs/governance/package-dependency-policy.md`
+  (its only commit). All six are documentation.
+- Between `40c187e` and `6c01ab6` the Phase A status text in the Commerce architecture documents changed from `READY TO START` to
+  `DESIGN READY — IMPLEMENTATION AUTHORIZATION PENDING`, and the freeze assessment and final freeze report now carry a
+  "Correction (2026-11-04)" note. The *content* of these changes is readable from `git show 6c01ab6`.
+- Development `a208100` is a **single commit of eleven documentation files** (ADR-029, 030, 031, 032, 033, 034, 035, 036,
+  `docs/standards/release-review.md`, this roadmap, the validator design document) under a message naming only ADR-035. Neither commit
+  touches a manifest, lockfile, source, build, CI or Changesets file.
+- The Phase A authorisation gate (ADR-032 `Proposed`, Order design `Draft — pending review`, Community sign-off) is verifiable from the
+  current text of those documents, independently of who made which edit.
+- A clean working tree (as of this revision: Commerce and Community clean; Development carrying this task's documentation changes) records
+  only that the content was committed. **It does not establish provenance.**
 
-Relative to HEAD, the Phase A authorisation status **is changed** (from `READY TO START` to `DESIGN READY — IMPLEMENTATION
-AUTHORIZATION PENDING`); the earlier statement that it is "unchanged" was wrong. The Phase A governance status itself is preserved:
-design-ready, not authorized to implement, gated on ADR-032 (Accepted) + DESIGN.md + Community review. ADR-022 and
-ADR-029/030/031/032 are unchanged by this task; ADR-032 remains `Proposed`.
+### 9.2 Historical information that can only be partially reconstructed
 
-No manifest, lockfile, source, build or CI file, Changesets configuration or validator rule was changed.
+- That the six Commerce files and the eleven Development files each changed together, in one commit each, about 22 seconds apart
+  (Development 11:20:41, Commerce 11:21:03, 2026-11-04 +0100), is recoverable from commit metadata.
+- The earlier version of this section asserted that two Commerce edits (the `07 §4` cross-reference and the governance-decision register
+  entry pointing at ADR-036) belonged to the dependency-remediation work, and that the Phase A status edits were the freeze record's own
+  correction. That classification is **retained here only as a prior prose assertion**. The current text of the freeze documents is
+  consistent with it (they label the Phase A change a correction), but consistency of wording is not evidence of who or which pass
+  made each edit or when.
+
+### 9.3 Historical provenance that is no longer independently verifiable
+
+- Which session, pass or author produced each individual hunk inside `6c01ab6` or `a208100`.
+- Whether the Phase A status correction predated the dependency-policy work or was made during it (Git records commit time, not edit time;
+  every file in a commit shares one timestamp).
+- The order of edits in the working-tree period before the commits. Only the committed result is available; no record of the
+  intermediate working-tree state is preserved in the repositories.
+- The accuracy of any statement in earlier versions of this roadmap or in other documents about which task "created" or "did not make"
+  a given change.
+- The Development commit message does not describe its contents (it names ADR-035; four of the eleven files, ADR-029…032, are unrelated
+  to the dependency policy).
+
+**This limitation is permanent**: no available repository evidence can restore it, and none is guessed here. It affects only the
+*auditability of the documentation work*; no architectural decision, ADR content or Phase A gate depends on it. The review documents
+(`docs/standards/reviews/dependency-policy-maintainer-review.md` §9, `…-independent-review.md` §9, `…-decision-resolution.md`) state the same
+limitation.
+
+### 9.4 Scope of the dependency-remediation documentation
+
+The documents produced by this remediation are ADR-033 to ADR-036, `release-review.md`, this roadmap, the validator design document, and the
+Commerce package-dependency policy (plus revisions recorded in the decision-resolution record). No manifest, lockfile, source, build, CI,
+Changesets or validator file was changed by the commits listed in §9.1 or, to date, by the documentation revisions; the only
+non-Development documentation edits are the three descriptive Community documents and the Commerce policy named in the decision-resolution record.

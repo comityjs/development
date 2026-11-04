@@ -328,19 +328,23 @@ A Technology Adapter MUST declare every Core Module it consumes as a `peerDepend
 
 Core Module peer dependency ranges MUST be compatible with the versions supported by the adapter.
 
-Inside the monorepo, `workspace:*` MAY be used for Core Module peer dependencies. The repository's publishing/release process is responsible for converting workspace ranges into appropriate published semver ranges.
+**Published sibling range protocol (ADR-033, `Accepted` 2026-11-04).** Internal sibling references in `dependencies` and `peerDependencies` MUST use `workspace:^`, which pnpm publishes as `^<sibling version at publish time>`. Sibling `devDependencies` are unchanged (`workspace:*`); they are not a published compatibility constraint. Under 0.x, `^0.9.1` means `>=0.9.1 <0.10.0`: patch drift is allowed and a sibling minor is a range break. An exception requires a recorded justification in the package's `docs/conventions.md` (ADR-033 Decision 4). The repository's publishing/release process converts the workspace range into the published range.
+
+**Transition state (accurate as at 2026-11-04).** ADR-033 is accepted but **not yet implemented**. Existing manifests still use `workspace:*` — 120 sibling references in comity-community and 7 in comity-development. They are migrated by **WP-A1** (comity-community) and **WP-A4** (comity-development); **neither work package is authorised by ADR-033's acceptance.** New or edited sibling references MUST use `workspace:^`; existing `workspace:*` references are not violations until those work packages run.
 
 ### Example
+
+Required form under ADR-033 (`Accepted`). **The current manifests of these packages still show `workspace:*`;** they are migrated by WP-A1, which is not yet authorised. The form below is what a new or edited sibling reference MUST use.
 
 For `@comity/sql-kysely`:
 
 ```json
 {
   "dependencies": {
-    "@comity/sql": "workspace:*"
+    "@comity/sql": "workspace:^"
   },
   "peerDependencies": {
-    "@comity/sql": "workspace:*",
+    "@comity/sql": "workspace:^",
     "kysely": "^0.28.0"
   }
 }
@@ -351,14 +355,14 @@ For `@comity/http-hono`:
 ```json
 {
   "dependencies": {
-    "@comity/composition": "workspace:*",
-    "@comity/http": "workspace:*",
-    "@comity/primitives": "workspace:*"
+    "@comity/composition": "workspace:^",
+    "@comity/http": "workspace:^",
+    "@comity/primitives": "workspace:^"
   },
   "peerDependencies": {
-    "@comity/composition": "workspace:*",
-    "@comity/http": "workspace:*",
-    "@comity/primitives": "workspace:*",
+    "@comity/composition": "workspace:^",
+    "@comity/http": "workspace:^",
+    "@comity/primitives": "workspace:^",
     "hono": "^4.12"
   }
 }
@@ -389,9 +393,9 @@ An adapter MAY declare the same Core Module in both `dependencies` and `peerDepe
 
 ### Monorepo Consideration
 
-`workspace:*` is valid for Core Module references within the monorepo.
+Both `workspace:^` (the protocol required by ADR-033) and the legacy `workspace:*` (still present in existing manifests until WP-A1/WP-A4 migrate them) are valid for Core Module references within the monorepo.
 
-The presence of a `workspace:*` dependency MUST NOT be considered sufficient reason to omit the corresponding `peerDependency`. Workspace resolution solves monorepo package linking; it does not replace the published package compatibility contract.
+The presence of a workspace sibling dependency MUST NOT be considered sufficient reason to omit the corresponding `peerDependency`. Workspace resolution solves monorepo package linking; it does not replace the published package compatibility contract.
 
 ### Architectural Intent
 

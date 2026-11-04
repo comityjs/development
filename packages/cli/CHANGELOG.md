@@ -1,5 +1,16 @@
 # @comity-dev/cli
 
+## 0.2.3
+
+### Patch Changes
+
+- cc0160b: Re-release so `comity` resolves the ADR-034 flat-`dist/` build (`@comity-dev/build`) and the corrected export-condition normalizer (`@comity-dev/package-tools`). `@comity-dev/cli` pins its siblings to exact versions at publish time (`workspace:*`, see ADR-033 and WP-A4), so it must be re-released for consumers to receive them. No change to the CLI's own commands or API.
+- Updated dependencies [cc0160b]
+- Updated dependencies [cc0160b]
+  - @comity-dev/build@0.3.0
+  - @comity-dev/package-tools@0.2.1
+  - @comity-dev/validate@0.2.3
+
 ## 0.2.2
 
 ### Patch Changes

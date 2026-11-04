@@ -25,11 +25,22 @@ import {
 } from "@comity-dev/semgrep-rules";
 ```
 
-The `./rules` subpath exposes the raw YAML rule files:
+The `./rules/*.yaml` subpath pattern exposes each raw YAML rule file for **path resolution**. The files are Semgrep configuration data, not JavaScript modules, so resolve them to a path (for example to pass to `semgrep --config`) rather than `import`ing them:
 
 ```ts
-import rulePath from "@comity-dev/semgrep-rules/rules/<file>.yaml";
+import { fileURLToPath } from "node:url";
+
+const rulePath = fileURLToPath(
+  import.meta.resolve("@comity-dev/semgrep-rules/rules/module-shape.yaml"),
+);
 ```
+
+```js
+// CommonJS-syntax code on Node 24+
+const rulePath = require.resolve("@comity-dev/semgrep-rules/rules/module-shape.yaml");
+```
+
+Available files: `adapter-contract-shape.yaml`, `composition-shape.yaml`, `core-domain-no-crypto.yaml`, `error-class-shape.yaml`, `module-shape.yaml`, `value-object-shape.yaml`. Only `*.yaml` files directly under `rules/` are exported; the bare `@comity-dev/semgrep-rules/rules` directory is not an entry point (use `listRuleFiles()` to enumerate the files).
 
 ## Relationship to Comity Standards
 

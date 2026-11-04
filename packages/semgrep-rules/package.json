@@ -23,7 +23,7 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./rules": "./rules/"
+    "./rules/*.yaml": "./rules/*.yaml"
   },
   "files": [
     "./dist",

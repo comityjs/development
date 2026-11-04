@@ -1,5 +1,12 @@
 # @comity-dev/validate
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [bc92680]
+  - @comity-dev/semgrep-rules@0.2.3
+
 ## 0.2.2
 
 ### Patch Changes

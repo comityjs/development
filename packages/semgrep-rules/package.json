@@ -23,14 +23,14 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./rules": "./rules/"
+    "./rules/*.yaml": "./rules/*.yaml"
   },
   "files": [
     "./dist",
     "./rules"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
     "test": "vitest run"
   },
   "devDependencies": {

@@ -10,6 +10,19 @@
 
 **Status:** Accepted
 
+> **Partial supersession by ADR-034 — Accepted 2026-11-04.** **ADR-034** (`Accepted`) supersedes, for the whole repository
+> including these two CLI packages, the section "ESM-First Source with Dual ESM/CJS Distribution" and the two Consequences lines
+> that repeat it ("dual ESM/CJS distribution is provided per repository convention"; "consistent with the repository
+> dual-package convention"), replacing dual ESM/CJS distribution with a **single ESM build**: `import` and Node 24+
+> `require(esm)` resolve to the same file; no CommonJS build; no package-specific exception. Comity supports ESM distribution
+> and Node 24+ `require(ESM)` compatibility — **not** CommonJS modules. **Only that section and those two lines are
+> superseded.** Everything else in this ADR — package classification, dependency rules, the Core and Adapter contracts, and
+> `bin` ownership — **remains in force**, and this ADR remains `Accepted`. The original text below is deliberately preserved as
+> historical record and is not rewritten. (Note for readers: this ADR itself states that the CLI architecture does not require
+> CJS and that dual distribution followed the repository convention.) **The superseding provisions are not yet implemented:**
+> `comity-build` still emits `dist/cjs`, and packages still route `require` to it. That changes in **WP-B**, which ADR-034's
+> acceptance does not authorise.
+
 ## Context
 
 Comity historically had an `@comity/cli` package that was removed because it violated the adapter architecture by directly depending on Commander.js. The old implementation embedded Commander, process/runtime concerns, and the executable entry point in a single package, coupling the CLI abstraction to a specific technology.

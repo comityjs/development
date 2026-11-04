@@ -10,8 +10,14 @@
  *   --help, -h     Show this help
  *   --watch, -w    Watch mode
  *
- * The tool reads the current working directory's tsconfig.json and builds
- * ESM, CJS, and type declaration outputs.
+ * The tool reads the current working directory's tsconfig.json and emits ESM
+ * JavaScript and its TypeScript declarations side by side in one flat `dist/`
+ * directory (`dist/index.js` next to `dist/index.d.ts`).
+ *
+ * Per ADR-034 (ESM-only distribution with a flat `dist/` structure), Comity
+ * ships a single ESM build: there is no CommonJS pass and there are no
+ * `dist/esm`, `dist/types`, or `dist/cjs` trees. `import` and Node 24+
+ * `require(ESM)` resolve to the same `dist/index.js` artifact.
  */
 
 import { spawn } from "node:child_process";
@@ -22,6 +28,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..", ".."); // monorepo root (from dist/bin/)
 const CWD = process.cwd(); // package directory
+const DIST = join(CWD, "dist"); // flat ESM + declarations output (ADR-034)
 
 /**
  * Execute a command as a child process.
@@ -76,11 +83,9 @@ async function fileExists(path: string): Promise<boolean> {
  * Clean the dist directory.
  */
 async function clean(): Promise<void> {
-  const distDir = join(CWD, "dist");
-
-  if (await fileExists(distDir)) {
+  if (await fileExists(DIST)) {
     console.log("Cleaning...");
-    await rm(distDir, { recursive: true, force: true });
+    await rm(DIST, { recursive: true, force: true });
   }
 }
 
@@ -111,7 +116,7 @@ async function buildPackage(options: { watch?: boolean } = {}): Promise<void> {
   // 2. Type check
   await typeCheck(tsconfig);
 
-  // 3. ESM + CJS + DTS build
+  // 3. Single flat emit: ESM JavaScript + declarations into dist/ (ADR-034)
   await buildWithTSC(tsconfig);
 
   console.log("Build completed\n");
@@ -128,56 +133,43 @@ async function typeCheck(tsconfig: string): Promise<void> {
 }
 
 /**
- * Build the project using tsc with specific options.
+ * Compiler arguments for the single flat emit.
+ *
+ * One tsc program writes JavaScript and declarations into the same `dist/`
+ * directory, so relative imports in `.js` and `.d.ts` files stay valid and the
+ * source maps point at `../src/...` from every emitted file.
  * @param {string} tsconfig - Path to the tsconfig.json file.
+ * @param {boolean} sourceMap - Whether to emit source maps.
+ * @returns {string[]} The tsc arguments.
  */
-async function buildWithTSC(tsconfig: string): Promise<void> {
-  console.log("Building ESM...");
-
-  await exec("tsc", [
+function emitArgs(tsconfig: string, sourceMap: boolean): string[] {
+  return [
     "--project",
     tsconfig,
     "--outDir",
-    join(CWD, "dist", "esm"),
-    "--declaration",
+    DIST,
+    "--noEmit",
     "false",
-    "--sourceMap",
-    process.env["NODE_ENV"] !== "production" ? "true" : "false",
-  ]);
-
-  console.log("Building CJS...");
-
-  await exec("tsc", [
-    "--project",
-    tsconfig,
-    "--outDir",
-    join(CWD, "dist", "cjs"),
-    "--declaration",
-    "false",
-    "--sourceMap",
-    process.env["NODE_ENV"] !== "production" ? "true" : "false",
-    "--module",
-    "CommonJS",
-    "--moduleResolution",
-    "node",
-    "--allowSyntheticDefaultImports",
-    "true",
-  ]);
-
-  console.log("Building types...");
-
-  await exec("tsc", [
-    "--project",
-    tsconfig,
-    "--outDir",
-    join(CWD, "dist", "types"),
     "--declaration",
     "true",
     "--emitDeclarationOnly",
-    "true",
+    "false",
     "--sourceMap",
-    process.env["NODE_ENV"] !== "production" ? "true" : "false",
-  ]);
+    sourceMap ? "true" : "false",
+  ];
+}
+
+/**
+ * Build the project using tsc: ESM JavaScript and declarations, flat in `dist/`.
+ * @param {string} tsconfig - Path to the tsconfig.json file.
+ */
+async function buildWithTSC(tsconfig: string): Promise<void> {
+  console.log("Building ESM and declarations...");
+
+  await exec(
+    "tsc",
+    emitArgs(tsconfig, process.env["NODE_ENV"] !== "production"),
+  );
 }
 
 /**
@@ -209,49 +201,10 @@ async function watchBuildWithTSC(tsconfig: string): Promise<void> {
   }
 
   try {
-    startWatchProcess("ESM", [
+    startWatchProcess("ESM and declarations", [
       "--watch",
       "--preserveWatchOutput",
-      "--project",
-      tsconfig,
-      "--outDir",
-      join(CWD, "dist", "esm"),
-      "--declaration",
-      "false",
-      "--sourceMap",
-      "true",
-    ]);
-    startWatchProcess("CJS", [
-      "--watch",
-      "--preserveWatchOutput",
-      "--project",
-      tsconfig,
-      "--outDir",
-      join(CWD, "dist", "cjs"),
-      "--declaration",
-      "false",
-      "--sourceMap",
-      "true",
-      "--module",
-      "CommonJS",
-      "--moduleResolution",
-      "node",
-      "--allowSyntheticDefaultImports",
-      "true",
-    ]);
-    startWatchProcess("Types", [
-      "--watch",
-      "--preserveWatchOutput",
-      "--project",
-      tsconfig,
-      "--outDir",
-      join(CWD, "dist", "types"),
-      "--declaration",
-      "true",
-      "--emitDeclarationOnly",
-      "true",
-      "--sourceMap",
-      "true",
+      ...emitArgs(tsconfig, true),
     ]);
 
     // Handle graceful shutdown on SIGINT
@@ -290,7 +243,8 @@ Options:
   --watch, -w    Watch mode
 
 The tool reads the current working directory's tsconfig.json and builds
-ESM, CJS, and type declaration outputs.`);
+ESM JavaScript and declarations side by side in a flat dist/ directory
+(ADR-034: ESM-only, no CommonJS build, no dist/esm or dist/types).`);
     process.exit(0);
   }
 

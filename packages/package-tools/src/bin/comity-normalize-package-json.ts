@@ -107,6 +107,40 @@ function sortKeywords(keywords: string[] | undefined): string[] {
   return [...priorityKeywords.sort(), ...otherKeywords.sort()];
 }
 
+/**
+ * Order the conditions of an export target.
+ *
+ * Node resolves conditions in object order, so the order is semantic: `types`
+ * must come first and `default` must come last, with any environment condition
+ * (for example `node`) in between. Legacy `import` / `require` branches, when a
+ * package still has them, stay ahead of `types`. Nested condition objects are
+ * ordered the same way.
+ * @param {unknown} value - A string target or a (possibly nested) condition object.
+ * @returns {unknown} The same value with its conditions ordered.
+ */
+function sortConditions(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>);
+  const rank = (condition: string): number => {
+    if (condition === "import") return 0;
+    if (condition === "require") return 1;
+    if (condition === "types") return 2;
+    if (condition === "default") return 4;
+
+    return 3;
+  };
+
+  return Object.fromEntries(
+    entries
+      .map(([condition, target], index) => ({ condition, target, index }))
+      .sort((a, b) => rank(a.condition) - rank(b.condition) || a.index - b.index)
+      .map(({ condition, target }) => [condition, sortConditions(target)]),
+  );
+}
+
 function sortExports(
   exports: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
@@ -131,22 +165,7 @@ function sortExports(
   }
 
   for (const [key, value] of Object.entries(result)) {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      const conditionOrder = ["import", "require", "types", "default"];
-      const sortedConditions: Record<string, unknown> = {};
-      const valueObj = value as Record<string, unknown>;
-      for (const cond of conditionOrder) {
-        if (valueObj[cond] !== undefined) {
-          sortedConditions[cond] = valueObj[cond];
-        }
-      }
-      for (const [cond, val] of Object.entries(valueObj)) {
-        if (!conditionOrder.includes(cond)) {
-          sortedConditions[cond] = val;
-        }
-      }
-      result[key] = sortedConditions;
-    }
+    result[key] = sortConditions(value);
   }
 
   return result;

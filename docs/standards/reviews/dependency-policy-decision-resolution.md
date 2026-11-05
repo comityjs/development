@@ -62,6 +62,13 @@
 > the B10 model below and in roadmap §4.1. **These approvals do not activate enforcement**: WP-A1, WP-A4 and WP-B formal ratification
 > gate a blocking stage-2 check and are incomplete, so stage 2 runs in the release workflows in report-only mode.
 > No WP-C4, WP-D* or unrelated release is authorized.
+> **Update — WP-C3 completion (2026-11-05).** WP-C3 is **`COMPLETED`** and released. Stage-2 `packed-surface` (`ARCH-PACK-001…006`) is
+> implemented with 18 real-tarball tests and design §12 "Implementation notes"; C1 is resolved as `pnpm pack` plus the system `tar`
+> with no new dependency. The release workflow published `@comity-dev/validate@0.4.0` and the dependent `@comity-dev/cli@0.2.5` at
+> commit `70c6b29`; tags point to that commit and GitHub releases exist. Both release workflows run `validate:packed-surface` after
+> `Build` and before `Release`, report-only. Verification on Node 24.0.0 and 24.19.0 produced 7 findings on Development and 120 on
+> Community, all `ARCH-PACK-005`, with stage 1 unchanged. **Enforcement remains inactive** — WP-A1, WP-A4 and WP-B formal
+> ratification are outstanding (§6.1).
 > **Evidence record:** `dependency-policy-independent-review.md` (IR-nn, unchanged) and `dependency-policy-maintainer-review.md`
 > (original findings preserved; a post-resolution note at its top marks superseded statements).
 
@@ -236,18 +243,17 @@ requires, create the release tags and GitHub releases through the established pr
 if the calculation requires it. Excluded: unrelated packages and releases, and any expansion of this scope. **Enforcement is not
 authorized to become blocking** until the WP-A1/WP-A4 and WP-B formal-ratification gates are satisfied.
 
-**WP-C3 status.** `AUTHORIZED` on 2026-11-05 under the two records above and `IMPLEMENTED` the same day; its release is authorized and
-in progress. Its authoritative definition is ADR-035 D-03 stage 2 (`packed-surface`, design §12, rules `ARCH-PACK-001…006`).
-Decision **C1** is resolved inside the work package: `pnpm pack --pack-destination` produces the tarball and the system `tar` reads
-it — **no new dependency**. Stage-2 **enforcement** remains gated on WP-A1 and WP-A4 exact-pin migration or recorded exceptions and on
-WP-B formal ratification, which are incomplete; see §6.1.
+**WP-C3 status.** `COMPLETED`, verified and `RELEASED` on 2026-11-05 under the two records above. Its authoritative definition is
+ADR-035 D-03 stage 2 (`packed-surface`, design §12, rules `ARCH-PACK-001…006`). Decision **C1** is resolved inside the work package:
+`pnpm pack --pack-destination` produces the tarball and the system `tar` reads it — **no new dependency**. Stage-2 **enforcement**
+remains gated on WP-A1 and WP-A4 exact-pin migration or recorded exceptions and on WP-B formal ratification, which are incomplete; see
+§6.1.
 
-As at this record, **WP-0, WP-C1 and WP-C2 are `COMPLETED`; WP-C3 is `AUTHORIZED` and `IMPLEMENTED` with its release authorized; no
-other implementation work package is `AUTHORIZED` or `STARTED`**: B6 **approved** the WP-A2 *release activity* (release-owner gate
-satisfied) without authorising its implementation; A1 **confirmed** a *sequencing prerequisite* without authorising WP-B; B8
-**authorised** *policy adoption* without authorising Commerce implementation; B9 **authorised** a *narrow documentation change*, which
-was executed. WP-B is evidence-complete and published, with formal completion ratification pending owner approval. WP-C4 remains
-unauthorized.
+As at this record, **WP-0, WP-C1, WP-C2 and WP-C3 are `COMPLETED`; no other implementation work package is `AUTHORIZED` or
+`STARTED`**: B6 **approved** the WP-A2 *release activity* (release-owner gate satisfied) without authorising its implementation; A1
+**confirmed** a *sequencing prerequisite* without authorising WP-B; B8 **authorised** *policy adoption* without authorising Commerce
+implementation; B9 **authorised** a *narrow documentation change*, which was executed. WP-B is evidence-complete and published, with
+formal completion ratification pending owner approval. WP-C4 remains unauthorized.
 
 ### C. Implementation decision (within the approved architecture, during the work package)
 
@@ -348,8 +354,8 @@ once authorised; it constrains only the **first Commerce publication** milestone
 
 ### 6.1 WP-C3 implementation
 
-**WP-C3 is `IMPLEMENTED` and verified (2026-11-05)** under the B10 authorization and the release-owner approval and release-execution
-authorization of the same date; its release is in progress. It is ADR-035 D-03 stage 2 (`packed-surface`, design §12): it packs every
+**WP-C3 is `COMPLETED`, verified and `RELEASED` (2026-11-05)** under the B10 authorization and the release-owner approval and
+release-execution authorization of the same date. It is ADR-035 D-03 stage 2 (`packed-surface`, design §12): it packs every
 publishable package in the producer repository after build and before publication, reads the tarball and the packed manifest (never
 the workspace `dist`), and applies `ARCH-PACK-001…006`. **C1 is resolved** as `pnpm pack --pack-destination` plus the system `tar`
 (`-tzf`, `-xOf`) — **no new dependency**. `ARCH-PACK-003` is an umbrella marker: the packed-manifest external-reference check runs
@@ -364,6 +370,15 @@ entry-reachable / 6 external references / 0 findings). Real packed-tarball verif
 Community 54 tarballs → 120 findings, **all `ARCH-PACK-005`** (the WP-A4 and WP-A1 exact pins) and **none** of `-001`, `-002`, `-004`,
 `-006`; the run reproduces the stage-1 surface counts from the tarballs (Community 54 packages / 485 entry-reachable declarations /
 324 external references).
+
+Release evidence: `@comity-dev/validate@0.4.0` and the dependent `@comity-dev/cli@0.2.5` were published by release run `42040136600`
+(step 7 `Validate packed surface` then step 8 `Release`, both `success`) at Development commit `70c6b29`; tags
+`@comity-dev/validate@0.4.0` and `@comity-dev/cli@0.2.5` point to `70c6b29` and GitHub releases exist; registry integrity values are
+`sha512-2vfg9RltRLHl1KmMw9LcZbwW3HA0fguQ18GtdvRuN2R6/xAfyaNCZsRclqYM9v0Sm+ZotGa7fcsIu8DB+Qmkmg==` (validate) and
+`sha512-ZmbcGzL/13xPKJnvaybHrOowltubHyAaAgCL4LGtdGqwRsMZVIKfctOOOjkiGJnpIOameAHTDVWqjCKWO+kHqg==` (cli); the downloaded `0.4.0`
+tarball contains `dist/engines/packed-surface.js` and its declarations. Implementation merged as PR #22 (`ad79985`, CI `42038993350`);
+`Version Packages` merged as PR #23 (`70c6b29`, CI `42039836944`); the post-merge Release run `42039232994` created the version PR and
+executed the stage-2 step report-only.
 
 Release-workflow integration: `development/.github/workflows/release.yml` and `community/.github/workflows/release.yml` run
 `pnpm validate:packed-surface` **after `Build` and before the Changesets `Release` step**. The step blocks publication when the
@@ -424,20 +439,27 @@ and the roadmap (header, §1 row C, WP-C2 row, §8.7) now record completion. The
 it. Community PR #16 (`83c8dce`) migrated consumers and the lockfile. Community CI run `42000652819`, main CI run `42001013330`
 and Release run `42001013288` passed; the release step reported no new packages to publish. No WP-C3, WP-C4, WP-D* or unrelated
 release was started.
+**Updated by the WP-C3 authorization, implementation and release (2026-11-05):** this record (header, B10 model, §6.1 and §9), the
+roadmap (header, §1 row C, §2 WP-C3 row, §4.1 and §8.7) and the Community governance handoff (header, §D row 5, §E, §F.2, §G) record
+the WP-C3 approvals, the implementation, the release and the enforcement gate. Changed by this pass: the stage-2 engine and its tests,
+`run.ts` / `format.ts` / CLI registration, the design §12 implementation notes, the package README, the changeset, both release
+workflows, both root `validate:packed-surface` scripts, and the Community consumer/lockfile bump. No ADR was changed, no unrelated
+package or release was touched, and no unrelated working-tree modification was staged or committed. **WP-C3 is `COMPLETED`, verified
+and `RELEASED`; stage-2 enforcement remains inactive** and is gated on WP-A1, WP-A4 and WP-B formal ratification. The WP-A1/A4 counts
+are a 2026-11-05 snapshot.
+
 **Updated by the WP-C2 final closure and WP-C3 handoff (2026-11-05, documentation only):** this record (header, §6.1, completion
 evidence and §9), the roadmap (header, §1 row C, §2 WP-C3 row, §4.1 and completion evidence) and the Community governance handoff
-(header, §D WP-C3 row, §F.1, §F.2 and §G) record the final WP-C2 closure evidence and the WP-C3 handoff. Independently inspected for
-this record: PR #16 (`83c8dce`) and PR #21 (`b67aa0b`), both annotated tag objects and their dereference to `a403257`, both GitHub
-releases, the registry `latest` dist-tags and version lists, the downloaded tarballs, and CI runs `42000652819`, `42001013330`,
-`42001013288`, `42001723228`, `42001856842` and `42001856844` (all `success`; the Community `ci` job's step order is `Build` →
-`Type-check` → `Validate` → `Test`). Local build, type-check, test (2,373 tests), ESLint (0 errors), both normalization checks, the
-`ARCH-DECL-DEP-001` negative control and the printed Declarations counts are execution-report evidence and were **not** re-run in
-this documentation-only pass. This pass also removed unsupported draft statements that described WP-C3 as authorized, implemented or
-released: no governance, repository, tag, release or registry record supports them, and no B10 authorization or release-owner
-approval for WP-C3 exists. No source, manifest, lockfile, CI, workflow, changeset, release, tag or publication change was made;
-pre-existing uncommitted working-tree edits (Development validator sources and unrelated ADR/schema edits, Community
-`packages/order/docs/design.md`, the untracked Community handoff itself, Commerce `docs/governance/package-dependency-policy.md`)
-were left untouched. **WP-C3 remains `NOT AUTHORIZED` and `NOT STARTED`**; the WP-A1/A4 counts are a 2026-11-05 snapshot.
+(header, §D WP-C3 row, §F.1, §F.2 and §G) recorded the WP-C2 closure evidence and the WP-C3 handoff. Independently inspected in that
+pass: PR #16 (`83c8dce`) and PR #21 (`b67aa0b`), both annotated tag objects and their dereference to `a403257`, both GitHub releases,
+the registry `latest` dist-tags and version lists, the downloaded tarballs, and CI runs `42000652819`, `42001013330`, `42001013288`,
+`42001723228`, `42001856842` and `42001856844` (all `success`; the Community `ci` job's step order is `Build` → `Type-check` →
+`Validate` → `Test`). Local build, type-check, test (2,373 tests), ESLint (0 errors), both normalization checks, the
+`ARCH-DECL-DEP-001` negative control and the printed Declarations counts are execution-report evidence and were **not** re-run in that
+documentation-only pass. That pass also removed unsupported draft statements that then described WP-C3 as authorized, implemented or
+released: at that point no governance, repository, tag, release or registry record supported them. The later explicit approvals
+recorded above supersede that status. No source, manifest, lockfile, CI, workflow, changeset, release, tag or publication change was
+made in that pass, and no pre-existing uncommitted working-tree modification was staged or committed.
 **Deliberately unchanged:** `runtime-support.md` (WP-B), `queue-pg-boss` package docs (WP-B), `repository-ownership.md` (D4), the independent
 review (byte-identical), ADR-032, the Order design, and all Commerce freeze documents **except** the two ADR-036 reference alignments
 authorised by B9 — in particular the `07 §4` **manifest sketch was NOT corrected**, because that change is outside B9's authorised scope.

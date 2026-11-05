@@ -99,6 +99,17 @@ ADRs it references.** Each work package below needs its own implementation task 
 > publication. This is **implementation authorisation only**: **no release-owner scope/semver approval and no release-execution
 > authorization are recorded for a WP-A4 release**, so **publication remains gated** — no changeset, tag or publication is created.
 > **Enforcement is not authorised by this act**: activation stays a separate explicit decision.
+>
+> **Final closure authorisation (2026-11-05).** The architecture owner and the release owner, in an explicit statement in the current
+> project conversation on **2026-11-05**, authorized the final closure of the dependency remediation. **Five approvals are recorded and
+> kept distinct:** (1) **WP-A1 release** — the Community remediation ships through the WP-A2 coordinated patch release; (2) **WP-A2
+> release execution** — the B6 release-owner scope/semver approval (2026-11-04) is now paired with explicit **execution** authorization
+> for the **50-package, patch-only** coordinated release, the 4 publishable packages without sibling edges staying excluded; (3) **WP-A4
+> release execution** — **`@comity-dev/cli` and `@comity-dev/validate`, patch only**; (4) **push** — the Development `main` commits and the
+> Community `wp-a1/sibling-ranges` branch; (5) **stage-2 enforcement activation** — `COMITY_PACKED_SURFACE_ENFORCEMENT=true` as a
+> repository variable in **comityjs/development** and **comityjs/framework** only, with no rule, exception or stage-1 change. This
+> authorisation covers **only** those acts: it authorizes no other work package (WP-C4 and WP-D* remain unauthorized), no Commerce
+> change, no package outside the two approved scopes, and no enforcement in any other repository.
 
 ## 1. Decisions and where they are recorded
 

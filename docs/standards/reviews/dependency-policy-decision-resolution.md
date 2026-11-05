@@ -98,6 +98,15 @@
 > (Decision 2). The authorisation covers **implementation only**: the release scope and semver are **not** approved and **no
 > release-execution authorization is recorded**, so no changeset, tag or publication is created. WP-A1, WP-A2, WP-C4, WP-D*, Community,
 > Commerce and stage-2 **enforcement activation** are excluded.
+>
+> **Update — final closure authorisation (2026-11-05).** In an explicit statement in the current project conversation the architecture
+> owner and the release owner authorized the closure acts, recorded with the same five distinct approvals as roadmap header: WP-A1
+> release (via WP-A2), **WP-A2 execution** for the 50-package patch-only coordinated release (B6 scope, the 4 edge-free packages
+> excluded), **WP-A4 execution** for `@comity-dev/cli` + `@comity-dev/validate` (patch only), **push** of the Development `main`
+> commits and the Community `wp-a1/sibling-ranges` branch, and **stage-2 enforcement activation** by setting the documented repository
+> variable in `comityjs/development` and `comityjs/framework` only. The statement authorizes no other work package, no Commerce change,
+> no out-of-scope package and no enforcement elsewhere; enforcing the check changes neither the rule set nor stage 1, and local CLI
+> behaviour stays opt-in.
 > **Evidence record:** `dependency-policy-independent-review.md` (IR-nn, unchanged) and `dependency-policy-maintainer-review.md`
 > (original findings preserved; a post-resolution note at its top marks superseded statements).
 

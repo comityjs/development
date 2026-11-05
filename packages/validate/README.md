@@ -69,10 +69,12 @@ It is deliberately **not part of the default run**: it packs every package (slow
 repository after `pnpm build` and before publication. Both release workflows run it after `Build` and before the
 Changesets `Release` step.
 
-**Enforcement is gated.** The release-workflow step blocks publication only when the repository variable
-`COMITY_PACKED_SURFACE_ENFORCEMENT` is `true`. It must stay unset until **WP-A1** (Community `workspace:*` migration),
-**WP-A4** (Development `@comity-dev/*` migration) and **WP-B** formal ratification are complete, because `pnpm pack`
-rewrites `workspace:*` to an exact pin and `ARCH-PACK-005` reports those pins.
+**Enforcement is active (2026-11-05).** The release-workflow step blocks publication only when the repository variable
+`COMITY_PACKED_SURFACE_ENFORCEMENT` is `true`; that variable is **set in both `comityjs/development` and `comityjs/framework`**, so a
+stage-2 finding now fails the release job before publication. It was activated only after **WP-A1** (Community `workspace:*` migration),
+**WP-A4** (Development `@comity-dev/*` migration) and **WP-B** formal ratification were complete, because `pnpm pack` rewrites
+`workspace:*` to an exact pin and `ARCH-PACK-005` reports those pins; both repositories now report **0 findings**. Local runs are
+unaffected: the category still runs only with `--only=packed-surface` and the default `validate` categories are unchanged.
 
 Exit codes:
 

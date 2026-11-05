@@ -258,10 +258,11 @@ define one.
 *Integration and enforcement.* The category is registered in `RunResult["categories"]` (`packedSurface`), in `format.ts` and in the
 CLI help, and it runs when `--only=packed-surface` is selected. It is **deliberately not part of the default run**: it packs every
 publishable package and it is a pre-publication check, so making it part of every `validate` invocation would slow every commit and
-would currently fail on the WP-A1/WP-A4 `workspace:*` exact pins that `pnpm pack` produces. Both release workflows run
-`validate:packed-surface` after `Build` and before the Changesets `Release` step, report-only until the repository variable
-`COMITY_PACKED_SURFACE_ENFORCEMENT` is `true`. Activating that variable is the enforcement activation, and it is gated on WP-A1,
-WP-A4 and WP-B formal ratification.
+would have failed on the WP-A1/WP-A4 `workspace:*` exact pins that `pnpm pack` produced before those migrations. Both release
+workflows run `validate:packed-surface` after `Build` and before the Changesets `Release` step, report-only until the repository variable
+`COMITY_PACKED_SURFACE_ENFORCEMENT` is `true`. That variable is the enforcement activation lever and is **set in both repositories since
+2026-11-05**, after WP-A1, WP-A4 and WP-B were complete and each stage-2 run reported 0 findings; the workflows branch on it, so no
+workflow change was needed and local CLI behaviour is unchanged.
 
 *Tests.* `packages/validate/src/engines/__tests__/packed-surface.test.ts` packs real tarballs for every rule (positive, negative,
 multiple violations, determinism, failed pack, exit codes) and covers the two cases `pnpm pack` cannot produce — an unrewritten

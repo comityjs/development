@@ -70,7 +70,7 @@
 > with no new dependency. The release workflow published `@comity-dev/validate@0.4.0` and the dependent `@comity-dev/cli@0.2.5` at
 > commit `70c6b29`; tags point to that commit and GitHub releases exist. Both release workflows run `validate:packed-surface` after
 > `Build` and before `Release`, report-only. Verification on Node 24.0.0 and 24.19.0 produced 7 findings on Development and 120 on
-> Community, all `ARCH-PACK-005`, with stage 1 unchanged. **Enforcement remains inactive** — WP-A1, WP-A4 and WP-B formal
+> Community, all `ARCH-PACK-005`, with stage 1 unchanged. **Enforcement remained inactive at that point** — WP-A1, WP-A4 and WP-B formal
 > ratification are outstanding (§6.1).
 > **Update — WP-B formal completion ratification (2026-11-05).** The owner **RATIFIED WP-B / ADR-034 as `COMPLETED`** in an explicit
 > statement in the current project conversation on **2026-11-05**, on the recorded and independently verified evidence, and confirmed
@@ -83,7 +83,7 @@
 > the tags and registry state are unaffected. This supersedes the
 > `PENDING OWNER APPROVAL` statements for WP-B completion, its semver class and B7. The ratification **authorises no other work
 > package, no publication and no enforcement activation**: WP-A1, WP-A2, WP-A4, WP-C4 and WP-D* are unchanged, and stage-2
-> enforcement remains inactive.
+> enforcement remains inactive. *(Superseded 2026-11-05: releases executed, commits pushed and stage-2 enforcement activated — see the final-closure record.)*
 > **Update — WP-A1 authorisation (2026-11-05).** The architecture owner **AUTHORIZED WP-A1 under B10** on **2026-11-05** (explicit
 > confirmation in the current project conversation). **Scope: the Community sibling-dependency remediation only** — `workspace:*` →
 > `workspace:^` for `@comity/*` siblings in `dependencies` and `peerDependencies` (ADR-033 Decision 1), the 2 sibling
@@ -107,6 +107,14 @@
 > variable in `comityjs/development` and `comityjs/framework` only. The statement authorizes no other work package, no Commerce change,
 > no out-of-scope package and no enforcement elsewhere; enforcing the check changes neither the rule set nor stage 1, and local CLI
 > behaviour stays opt-in.
+>
+> **Recorded outcome — final closure (2026-11-05).** Community Release run `42081126635` published the 50-package coordinated patch
+> (all 54 packages now match the registry at their manifest versions, every `package@version` tag and GitHub release exists) and
+> Development Release run `42074825112` published `@comity-dev/validate@0.4.1` and `@comity-dev/cli@0.2.6`. Both repositories are pushed
+> (`comityjs/framework` `47f5b00`, `comityjs/development` `0e54618`, through PRs #18, #19 and #26). Enforcement is **active** in both
+> repositories and both release logs state "packed-surface enforcement is active". Community runs `42077385162` and its rerun aborted
+> after a *successful* upload on `ERR_PNPM_PUBLISH_AVAILABILITY_TIMEOUT` (the script waited 60s for registry visibility); recovery was
+> forward-only — nothing was republished — and the release script now uses pnpm's default wait of 0 (`fix/release-publish-wait`, PR #19).
 > **Evidence record:** `dependency-policy-independent-review.md` (IR-nn, unchanged) and `dependency-policy-maintainer-review.md`
 > (original findings preserved; a post-resolution note at its top marks superseded statements).
 
@@ -275,7 +283,8 @@ exception is created, and the Development lockfile is regenerated. The root `pac
 package field and stays `workspace:*` (Decision 2). **Not authorised by this record:** WP-A1 (already implemented), WP-A2, every other
 work package, any Community or Commerce change, any publication, and any stage-2 enforcement activation.
 
-**WP-A4 status.** `AUTHORIZED` under B10 on 2026-11-05 and **`IMPLEMENTED` the same day**; the release remains **gated** (no
+**WP-A4 status.** `AUTHORIZED` under B10 on 2026-11-05, **`IMPLEMENTED` and `RELEASED` the same day**: `@comity-dev/validate@0.4.1` and
+`@comity-dev/cli@0.2.6` were published by Release run `42074825112` with tags and GitHub releases verified (the earlier gate wording is
 release-owner scope/semver approval and no release-execution authorization recorded). Implementation evidence: on Development
 `bd5daa4`, **7** declarations changed (`cli` 3, `validate` 4) from `workspace:*` to `workspace:^`; **0** exceptions; **0** sibling
 `workspace:*` left in `dependencies`/`peerDependencies` (only the root private `devDependency` remains, Decision 2); the lockfile was
@@ -296,8 +305,8 @@ the 2 sibling `devDependencies` on `workspace:*` (Decision 2), create no excepti
 WP-A4, every other work package, any Development or Commerce manifest change, any publication, and any stage-2 enforcement activation.
 The release scope and semver are already approved under **B6** (2026-11-04: coordinated patch release, patch only, 50-package scope,
 conditions unchanged), but **no explicit release-execution authorization is recorded** and WP-A2's own B10 implementation authorization
-is outstanding, so the release remains **gated**: no changeset, tag, publication or Community consumer bump is created until those two
-approvals are explicitly given.
+and Release-execution authorization were **explicitly granted on 2026-11-05**, so the gated release was executed: Community Release run
+`42081126635` published the 50-package coordinated patch and every `package@version` tag and GitHub release exists.
 See roadmap §2 WP-A1 and §8.7.
 
 **Recorded work-package authorisation — WP-C3.** The architecture owner **AUTHORIZED WP-C3** under B10 on **2026-11-05**. The
@@ -316,7 +325,8 @@ authorized to become blocking** until the WP-A4 and WP-B formal-ratification gat
 satisfied** (WP-A1 and WP-A4 implemented, WP-B formally ratified); satisfying them authorises no activation, which remains a separate
 explicit decision.
 
-**WP-A1 status.** `AUTHORIZED` under B10 on 2026-11-05 and **`IMPLEMENTED` the same day**; the release remains **gated** (no
+**WP-A1 status.** `AUTHORIZED` under B10 on 2026-11-05, **`IMPLEMENTED` and `RELEASED` the same day** through the WP-A2 coordinated patch
+(Release run `42081126635`; registry, tags and GitHub releases verified). The original gate wording read: no
 release-owner execution authorization). Implementation evidence: on Community `9dec3cc`, all **120** sibling
 `dependencies`/`peerDependencies` specifiers were migrated from `workspace:*` to `workspace:^` (**94** `dependencies` + **26**
 `peerDependencies`) across **50** packages; the **2** sibling `devDependencies` (`@comity/cli-commander` →
@@ -334,10 +344,11 @@ implementation authorization is outstanding, so no changeset, tag or publication
 ADR-035 D-03 stage 2 (`packed-surface`, design §12, rules `ARCH-PACK-001…006`). Decision **C1** is resolved inside the work package:
 `pnpm pack --pack-destination` produces the tarball and the system `tar` reads it — **no new dependency**. Stage-2 **enforcement**
 prerequisites are **all satisfied** as of 2026-11-05 (WP-A1 and WP-A4 implemented, stage 2 reporting 0 findings in both
-repositories; WP-B formally ratified); **activation remains a separate explicit decision** — see §6.1.
+repositories; WP-B formally ratified) and the architecture and release owners **activated enforcement on 2026-11-05** — see §6.1.
 
 As at this record, **WP-0, WP-B, WP-C1, WP-C2 and WP-C3 are `COMPLETED`, and WP-A1 and WP-A4 are `AUTHORIZED` (B10, 2026-11-05),
-implemented, with their releases gated; no other implementation work package is `AUTHORIZED` or `STARTED`**: B6 **approved** the WP-A2
+implemented and `RELEASED`, and stage-2 enforcement is ACTIVE in both repositories; no other implementation work package is `AUTHORIZED` or
+`STARTED`**: B6 **approved** the WP-A2
 *release activity* (release-owner gate satisfied) without authorising its implementation; A1
 **confirmed** a *sequencing prerequisite* without authorising WP-B; B8 **authorised** *policy adoption* without authorising Commerce
 implementation; B9 **authorised** a *narrow documentation change*, which was executed. WP-B is **`COMPLETED — FORMALLY RATIFIED`
@@ -473,13 +484,15 @@ Release-workflow integration: `development/.github/workflows/release.yml` and `c
 repository variable `COMITY_PACKED_SURFACE_ENFORCEMENT` is `true` and is report-only otherwise. The category is opt-in
 (`--only=packed-surface`) and is not part of the default run.
 
-Enforcement gates (**all satisfied 2026-11-05, activation not authorised**): WP-A1 migrated all 120 Community sibling references to
+Enforcement gates (**all satisfied and the check ACTIVATED 2026-11-05**): WP-A1 migrated all 120 Community sibling references to
 `workspace:^` and WP-A4 migrated the 7 Development `@comity-dev/*` sibling references, so neither repository packs exact sibling pins
 and each stage-2 run reports **0 `ARCH-PACK-005` findings**; sibling `devDependencies` stay `workspace:*` (ADR-033 Decision 2). WP-B's
-ESM-only implementation is verified, published and formally ratified, so `ARCH-PACK-006` passes. No gate therefore blocks activation.
-**Activation itself is still not authorised**: `COMITY_PACKED_SURFACE_ENFORCEMENT` must stay unset, no workflow may be changed to
-enforce, and enabling the check requires a separate explicit decision by the architecture and release owners. Remediation completion is
-not enforcement authorisation.
+ESM-only implementation is verified, published and formally ratified, so `ARCH-PACK-006` passes. With every gate satisfied, the
+architecture and release owners gave the separate explicit decision required: `COMITY_PACKED_SURFACE_ENFORCEMENT=true` was set as a
+repository variable in `comityjs/development` and `comityjs/framework` on 2026-11-05, and both release logs confirm
+"packed-surface enforcement is active" (runs `42074825112` and `42081126635`). No workflow, rule, exception or stage-1 category was
+changed: the workflows already branched on that variable, and the local CLI stays opt-in. Remediation completion was **not** treated as
+authorisation; the activation above is the separate, explicit act.
 
 ## 7. F-02 historical provenance (consistent with roadmap §9)
 
@@ -535,8 +548,8 @@ the WP-C3 approvals, the implementation, the release and the enforcement gate. C
 `run.ts` / `format.ts` / CLI registration, the design §12 implementation notes, the package README, the changeset, both release
 workflows, both root `validate:packed-surface` scripts, and the Community consumer/lockfile bump. No ADR was changed, no unrelated
 package or release was touched, and no unrelated working-tree modification was staged or committed. **WP-C3 is `COMPLETED`, verified
-and `RELEASED`; stage-2 enforcement remains inactive** — since 2026-11-05 WP-A1 and WP-A4 are implemented and WP-B is ratified, so the
-technical prerequisite is satisfied, while activation stays a separate explicit decision. The WP-A1/A4 counts
+and `RELEASED`; stage-2 enforcement was inactive at that point** — WP-A1 and WP-A4 were later implemented and released and WP-B was
+ratified on 2026-11-05, so the technical prerequisite was satisfied and enforcement was **activated the same day**. The WP-A1/A4 counts
 are a 2026-11-05 snapshot.
 
 **Updated by the WP-C2 final closure and WP-C3 handoff (2026-11-05, documentation only):** this record (header, §6.1, completion

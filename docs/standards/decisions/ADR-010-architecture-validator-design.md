@@ -14,7 +14,7 @@
 
 Comity enforces a strict layering model: dependencies flow downward only, and architectural rules are documented across `standards/` and the ADR series.
 
-ADR-008 introduced the closed register of Core-to-Core dependency exceptions. ADR-009 defined its machine-readable serialization (the register data file is maintained in comity-community; the schema is canonical in comity-development). Today, however, all of these rules are verified **manually** through architectural review; there is no automated enforcement.
+ADR-008 introduced the closed register of Core-to-Core dependency exceptions. ADR-009 defined its machine-readable serialization (the register data file and schema are canonical in comity-development). Today, however, all of these rules are verified **manually** through architectural review; there is no automated enforcement.
 
 `architecture-validation.md` describes a future automated validation layer ("Future Enforcement") and records the current repository conformance state in its Section 11 table (Community-specific), including a migration backlog of known non-conformances.
 
@@ -37,7 +37,7 @@ ADR-010 adopts the following design for a future architecture validator:
 1. The validator is a **read-only checker**: it inspects repository files and reports violations. It never modifies files. Inspected inputs include package manifests (`packages/*/package.json`), README files (`packages/*/README.md`), documentation paths, and — for export/entrypoint validation — source files (`packages/*/src/**/*.ts`), used to verify that declared export targets resolve and that sub-entrypoint paths comply with `public-api.md §3`.
 2. The validator consumes existing authoritative inputs only:
    - the repository dependency graph, derived from `packages/*/package.json` `dependencies`;
-   - the ADR-008 exception register serialization (register data from comity-community, schema from comity-development), validated against `adr-008-core-exception-register.schema.json`;
+   - the ADR-008 exception register serialization (register data and schema from comity-development), validated against `adr-008-core-exception-register.schema.json`;
    - the package classification defined by `public-api.md §1` and the repository inventory (Community-specific);
    - the standards documents it references for rule constants (vocabulary, allowed status labels, canonical lines, allowed/forbidden export paths).
 3. The validator is **not an architectural authority**. It reports conformance against ADR-008, ADR-009, and the standards; it does not define architecture.
@@ -72,7 +72,7 @@ Rules (from `layering-policy.md §2.2`, ADR-008):
 - Core Module → Adapter: forbidden.
 - Core Module → Application: forbidden.
 
-The validator compares the repository dependency graph against the ADR-008 register data (Community-specific instance). An edge present in the graph but absent from the register is a violation.
+The validator compares the repository dependency graph against the ADR-008 register data (canonical instance in comity-development). An edge present in the graph but absent from the register is a violation.
 
 Draft packages are classified and validated according to their architectural category (per `architecture-validation.md §3`); Draft status does not create a relaxed dependency model. Draft Core Modules follow Core Module dependency rules, including the ADR-008 register.
 
@@ -192,7 +192,7 @@ Forbidden Core dependency
 @comity/order
 
 Edge exists in repository dependency graph but is not registered as an approved exception.
-Source: ADR-008 (Community-specific register instance in comity-community)
+Source: ADR-008 (canonical register instance in comity-development)
 Remediation: register the edge via ADR, or remove the dependency.
 ```
 
@@ -256,9 +256,9 @@ This ADR does NOT concern:
 ## References
 
 - ADR-007 — Multi-Context Adapter Architecture (Integration Adapter category).
-- ADR-008 — Explicit Core Module Composition Exceptions (closed register, sole authority on exceptions; Community-specific instance in comity-community).
+- ADR-008 — Explicit Core Module Composition Exceptions (closed register, sole authority on exceptions; canonical instance in comity-development).
 - ADR-009 — Machine-Readable Core Exception Register (data contract, sole authority on the register format; schema canonical in comity-development).
-- ADR-008 register data (Community-specific instance in comity-community) — the serialized register consumed by the validator.
+- ADR-008 register data (canonical instance in comity-development) — the serialized register consumed by the validator.
 - `adr-008-core-exception-register.schema.json` — the schema the register must validate against (canonical in comity-development).
 - `architecture-validation.md` — normative rules and Section 11 conformance state (Community-specific); its "Future Enforcement" section describes this validator as a planning statement.
 - `layering-policy.md` — layer definitions and dependency direction.

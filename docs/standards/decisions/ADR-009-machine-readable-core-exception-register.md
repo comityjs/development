@@ -75,7 +75,7 @@ The register is data owned by the ADR series (`docs/standards/decisions/`). Co-l
 
 The **schema** file is `docs/standards/decisions/data/adr-008-core-exception-register.schema.json` (canonical, maintained in comity-development).
 
-The **register data file** is `docs/standards/decisions/data/adr-008-core-exception-register.json` (Community-specific instance, maintained in comity-community).
+The **register data file** is `docs/standards/decisions/data/adr-008-core-exception-register.json` (canonical instance, maintained in comity-development; it serializes the Community package graph).
 
 ## 4. File Format
 
@@ -168,9 +168,9 @@ The authoritative machine contract (schema) lives at:
 
 `docs/standards/decisions/data/adr-008-core-exception-register.schema.json`
 
-The ADR-008 register data file (Community-specific instance) conforms to it:
+The ADR-008 register data file (canonical instance in comity-development) conforms to it:
 
-`docs/standards/decisions/data/adr-008-core-exception-register.json` (in comity-community)
+`docs/standards/decisions/data/adr-008-core-exception-register.json` (in comity-development)
 
 ## 6. Governance Rules
 
@@ -271,4 +271,4 @@ This ADR does NOT concern:
 - `architecture-validation.md` — "Future Enforcement" — the planned automated validation layer.
 - `layering-policy.md` §2.2 — Core-to-Core dependency default.
 - `docs/standards/decisions/data/adr-008-core-exception-register.schema.json` — the machine contract (canonical, in comity-development).
-- `docs/standards/decisions/data/adr-008-core-exception-register.json` — the register data (Community-specific instance, in comity-community).
+- `docs/standards/decisions/data/adr-008-core-exception-register.json` — the register data (canonical instance in comity-development).

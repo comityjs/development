@@ -20,8 +20,8 @@
       "description": "The architectural authority this register serializes."
     },
     "source": {
-      "const": "ADR-008-explicit-core-module-composition-exceptions.md",
-      "description": "Path to the authoritative ADR document (same directory)."
+      "const": "../ADR-008-explicit-core-module-composition-exceptions.md",
+      "description": "Path to the authoritative ADR document, relative to this register data file."
     },
     "edges": {
       "type": "array",

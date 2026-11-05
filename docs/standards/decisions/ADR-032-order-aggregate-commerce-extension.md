@@ -11,7 +11,7 @@
 
 The Commerce Foundation v0 architecture (`commerce/docs/architecture/`, frozen 2026-11-04) is built by **extending the
 existing `@comity/order` aggregate in place** rather than introducing a parallel `CommerceOrder` or a universal cart.
-`@comity/order` already exists in comity-community, is published (0.9.0, 0.9.1), is governed by **Accepted ADR-013**
+`@comity/order` already exists in comity-community, is published (0.9.0, 0.9.1, 0.9.2), is governed by **Accepted ADR-013**
 (Order is a lifecycle aggregate, snapshots are owned), and sits inside Comity's existing commerce-shaped Core cluster
 (`catalog`, `pricing`, `inventory`, `payment`, `storefront`).
 
@@ -26,7 +26,7 @@ does not accept or implement the separate Comity prerequisites ADR-029 / ADR-030
 
 ### Verified repository facts (checked 2026-11-04)
 
-- `@comity/order` 0.9.1: `comity.layer: "core"`; dependencies `@comity/organization`, `@comity/pricing`,
+- `@comity/order` 0.9.2: `comity.layer: "core"`; dependencies `@comity/organization`, `@comity/pricing`,
   `@comity/primitives`; `private: false`; published on npm. No package in comity-community imports it; `magento`
   declares a `link:` but has no code import. Its contracts are commerce-shaped (SKU product snapshot, `Price`, channel,
   buyer/address/payment snapshots, cart-as-`draft` lifecycle).

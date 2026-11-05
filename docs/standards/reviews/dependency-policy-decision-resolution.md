@@ -257,8 +257,10 @@ confirmation in the current project conversation). **Scope: the Community siblin
 the 2 sibling `devDependencies` on `workspace:*` (Decision 2), create no exception without a recorded justification in the package's
 `docs/conventions.md` (Decision 4; none exist), and regenerate the Community lockfile (Decisions 5–6). **Not authorised by this record:**
 WP-A4, every other work package, any Development or Commerce manifest change, any publication, and any stage-2 enforcement activation.
-**No release-owner scope/semver approval and no release-execution authorization are recorded for a WP-A1 release**, so the release
-remains **gated**: no changeset, tag, publication or Community consumer bump is created until those two approvals are explicitly given.
+The release scope and semver are already approved under **B6** (2026-11-04: coordinated patch release, patch only, 50-package scope,
+conditions unchanged), but **no explicit release-execution authorization is recorded** and WP-A2's own B10 implementation authorization
+is outstanding, so the release remains **gated**: no changeset, tag, publication or Community consumer bump is created until those two
+approvals are explicitly given.
 See roadmap §2 WP-A1 and §8.7.
 
 **Recorded work-package authorisation — WP-C3.** The architecture owner **AUTHORIZED WP-C3** under B10 on **2026-11-05**. The
@@ -287,8 +289,8 @@ pairing is unchanged). Validation: `pnpm install --frozen-lockfile` consistent, 
 (212 files / 2,373 tests), ESLint 0 errors, both normalizers and Prettier clean, `comity validate` **PASS** with the unchanged stage-1
 baseline (54 / 537 / 485 / 324 / 0), and stage-2 `packed-surface` **PASS with 0 findings** (was 120 `ARCH-PACK-005`).
 **Release scope proposal:** the 50 packages carrying sibling edges, `patch`, per ADR-033 Decision 6 and roadmap §5.1 — B6 approved the
-coordinated patch release scope on 2026-11-04, but **no explicit release-execution authorization is recorded**, so no changeset, tag or
-publication is created.
+coordinated patch release scope on 2026-11-04, but **no explicit release-execution authorization is recorded** and WP-A2's own B10
+implementation authorization is outstanding, so no changeset, tag or publication is created.
 
 **WP-C3 status.** `COMPLETED`, verified and `RELEASED` on 2026-11-05 under the two records above. Its authoritative definition is
 ADR-035 D-03 stage 2 (`packed-surface`, design §12, rules `ARCH-PACK-001…006`). Decision **C1** is resolved inside the work package:

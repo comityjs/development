@@ -83,9 +83,10 @@ ADRs it references.** Each work package below needs its own implementation task 
 > specifiers of `@comity/*` siblings in `dependencies` and `peerDependencies` with `workspace:^` (ADR-033 Decision 1), leave the 2
 > sibling `devDependencies` unchanged (Decision 2), create no ADR-033 exception without a recorded justification in the package's
 > `docs/conventions.md`, and regenerate the Community lockfile. **Excluded:** WP-A4, every other work package, any Development or
-> Commerce manifest change, and any publication. This is **implementation authorisation only**: **no release-owner scope/semver
-> approval and no release-execution authorization are recorded for a WP-A1 release**, so **publication remains gated** — no changeset,
-> tag or publication is created until those approvals are given.
+> Commerce manifest change, and any publication. This is **implementation authorisation only**. The release scope and semver are already
+> approved under **B6** (2026-11-04: coordinated patch release, patch only, 50-package scope, conditions unchanged), but **no explicit
+> release-execution authorization is recorded** and WP-A2's own B10 implementation authorization is outstanding, so **publication remains
+> gated** — no changeset, tag or publication is created until those two approvals are given.
 
 ## 1. Decisions and where they are recorded
 

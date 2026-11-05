@@ -229,12 +229,17 @@ proposal (patch; see ADR-033 for the peer cascade that a non-patch release of a 
 validation requirements, except that "uniform `import`/`require` shape" in Validation requirement 5 reads "uniform
 `types`/`default` shape" and every `dist/esm`/`dist/types` path in this document reads as the flat path.
 
-**Implementation status (2026-11-04):** implemented in comity-development (`@comity-dev/build`, `@comity-dev/package-tools`)
-and comity-community (54 package manifests), and verified on packed tarballs (flat `dist/` only, every export target present)
-and in clean consumers (`nodenext`, `node16`, `bundler`, `node10`; Node 24.19.0 `import` and `require(ESM)` returning the
-same file and the same export identity). **Not yet released:** the registry still serves `@comity-dev/build@0.2.0`, which
-emits the previous layout, until the release described in the roadmap is approved and published. The text above under
-"Relationship to ADR-022" records the state at acceptance.
+**Implementation status (implemented 2026-11-04; released and ratified 2026-11-05):** implemented **and released** in
+comity-development (`@comity-dev/build@0.3.0`, `@comity-dev/package-tools@0.2.1`) and comity-community (54 package manifests;
+`@comity/primitives@0.9.2`, `@comity/order@0.9.2`, `@comity/cli@0.9.2`, `@comity/cli-commander@0.9.2`,
+`@comity/queue-pg-boss@0.10.1` — all `latest` on the registry). Verified on all 54 published tarballs (123 export subpaths; flat
+`dist/` only; every export target present) and in clean consumers on Node 24.19.0 and 24.0.0 (`import` and `require(ESM)` resolve to
+the same file and the same export identity; zero Node warnings), including `@comity/queue-pg-boss` and both CLI packages. A TypeScript
+clean-consumer fixture over the published package set used for requirement 4 (18 subpaths across eight packages) passes under
+`nodenext` and `bundler` (`.mts`) and `nodenext` (`.cts`) with `skipLibCheck: false`; the `node16` (`.cts`) leg fails with TS1479 as
+documented. **WP-B completion was formally ratified by the owner on 2026-11-05**, with no corrective WP-B2 required and the shipped
+semver class confirmed as `patch`. This paragraph records implementation and release status only: the decision, its scope and its
+`Accepted` status are unchanged, and the text above under "Relationship to ADR-022" records the state at acceptance.
 
 ## Alternatives considered
 
@@ -352,7 +357,7 @@ first-publication milestone and shapes the design of WP-D3's `require` leg; it d
    `runtime-support.md` §2/§3 scoping does not depend on it.
 
 Resolved by the architecture owner (D-02): universality of the ESM-only policy including the CLI packages; the `queue-pg-boss`
-treatment (no exception). Formal maintainer acceptance remains pending.
+treatment (no exception). ADR-034 is `Accepted` (2026-11-04) and WP-B completion was ratified on 2026-11-05.
 
 ## References
 

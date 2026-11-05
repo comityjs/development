@@ -1,5 +1,15 @@
 # @comity-dev/validate
 
+## 0.4.1
+
+### Patch Changes
+
+- Publish caret sibling ranges instead of exact pins (WP-A4).
+
+  The `@comity-dev/*` sibling references in `dependencies` now use `workspace:^`, so published
+  manifests carry `^<sibling version>` instead of the exact pin that `pnpm` produced from
+  `workspace:*`. No behaviour change.
+
 ## 0.4.0
 
 ### Minor Changes

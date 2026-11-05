@@ -330,11 +330,11 @@ Core Module peer dependency ranges MUST be compatible with the versions supporte
 
 **Published sibling range protocol (ADR-033, `Accepted` 2026-11-04).** Internal sibling references in `dependencies` and `peerDependencies` MUST use `workspace:^`, which pnpm publishes as `^<sibling version at publish time>`. Sibling `devDependencies` are unchanged (`workspace:*`); they are not a published compatibility constraint. Under 0.x, `^0.9.1` means `>=0.9.1 <0.10.0`: patch drift is allowed and a sibling minor is a range break. An exception requires a recorded justification in the package's `docs/conventions.md` (ADR-033 Decision 4). The repository's publishing/release process converts the workspace range into the published range.
 
-**Transition state (accurate as at 2026-11-04).** ADR-033 is accepted but **not yet implemented**. Existing manifests still use `workspace:*` — 120 sibling references in comity-community and 7 in comity-development. They are migrated by **WP-A1** (comity-community) and **WP-A4** (comity-development); **neither work package is authorised by ADR-033's acceptance.** New or edited sibling references MUST use `workspace:^`; existing `workspace:*` references are not violations until those work packages run.
+**Transition state (updated 2026-11-05).** ADR-033 is **implemented in both repositories**: **WP-A1** migrated all **120** Community sibling `dependencies`/`peerDependencies` references and **WP-A4** migrated the **7** `@comity-dev/*` sibling `dependencies` references, so no sibling `workspace:*` remains in a published field and stage-2 `packed-surface` reports **0 findings** in both repositories. Sibling `devDependencies` stay `workspace:*` (Decision 2). New or edited sibling references MUST use `workspace:^`; a `workspace:*` sibling reference in `dependencies`/`peerDependencies` is now a **defect**, not a legacy state.
 
 ### Example
 
-Required form under ADR-033 (`Accepted`). **The current manifests of these packages still show `workspace:*`;** they are migrated by WP-A1, which is not yet authorised. The form below is what a new or edited sibling reference MUST use.
+Required form under ADR-033 (`Accepted`, in force and implemented since 2026-11-05). The current manifests use `workspace:^`; the form below is the required form.
 
 For `@comity/sql-kysely`:
 
@@ -393,7 +393,7 @@ An adapter MAY declare the same Core Module in both `dependencies` and `peerDepe
 
 ### Monorepo Consideration
 
-Both `workspace:^` (the protocol required by ADR-033) and the legacy `workspace:*` (still present in existing manifests until WP-A1/WP-A4 migrate them) are valid for Core Module references within the monorepo.
+`workspace:^` is the required protocol for Core Module references within the monorepo (ADR-033, implemented 2026-11-05); the legacy `workspace:*` remains valid only in sibling `devDependencies`.
 
 The presence of a workspace sibling dependency MUST NOT be considered sufficient reason to omit the corresponding `peerDependency`. Workspace resolution solves monorepo package linking; it does not replace the published package compatibility contract.
 

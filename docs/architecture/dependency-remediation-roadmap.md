@@ -26,11 +26,37 @@ ADRs it references.** Each work package below needs its own implementation task 
 >
 > **WP-C2 completion (2026-11-05).** WP-C2 is `COMPLETED`. The Changesets release workflow published
 > `@comity-dev/validate@0.3.0` and `@comity-dev/cli@0.2.4` at Development commit `a403257`; annotated tags `23bfae2` and
-> `8a1fd4e` target that commit, and GitHub releases exist. Registry tarballs were verified. Community merged PR #16 (`83c8dce`);
-> Community CI run `42000652819` passed with `Build` before `Validate`, and the Declarations category reported 54 publishable
-> packages / 537 declaration files (485 entry-reachable) / 324 external references / 0 findings. Main CI run `42001013330` and
-> Release run `42001013288` also passed; the Release run made no publication. No WP-C3, WP-C4, WP-D* or unrelated release is
-> authorized.
+> `8a1fd4e` target that commit, and GitHub releases exist. Registry versions, integrity and downloaded tarballs were verified.
+> Community merged PR #16 (`83c8dce`); Community CI run `42000652819` passed with `Build` before `Validate`, and the Declarations
+> category reported 54 publishable packages / 537 declaration files (485 entry-reachable) / 324 external references / 0 findings.
+> Main CI run `42001013330` and Release run `42001013288` also passed; the Release run made no publication. The completion
+> documentation merged as PR #21 (`b67aa0b`); Development PR CI `42001723228`, main CI `42001856842` and Release run
+> `42001856844` also passed, and the Development Release run reported no unpublished projects.
+>
+> **WP-C2 closure — evidence status (2026-11-05).** *Independently inspected for this record:* PR #16 (`83c8dce`) and PR #21
+> (`b67aa0b`); both annotated tag objects (`23bfae2`, `8a1fd4e`) dereferencing to `a403257`; both GitHub releases; the registry
+> versions, `latest` dist-tags and downloaded tarballs (stage 1 present, no stage 2); and CI runs `42000652819`, `42001013330`,
+> `42001013288`, `42001723228`, `42001856842`, `42001856844`, all `success`, with the Community `ci` job steps ordered
+> `Build` → `Type-check` → `Validate` → `Test`. *Available only through the supplied execution report (not re-run in this
+> documentation-only pass):* the local `pnpm build`, `pnpm type-check`, `pnpm test` (2,373 tests passed), ESLint (0 errors), both
+> normalization checks, and the negative control that failed as designed with `ARCH-DECL-DEP-001` (exit 1) — as are the printed
+> Declarations counts (54 / 537 / 485 / 324 / 0 findings) and the Release runs' "no publication" summaries.
+>
+> **WP-C3 authorisation and release approval (2026-11-05).** The architecture owner **AUTHORIZED WP-C3 under B10** on
+> **2026-11-05**; the release owner **APPROVED the WP-C3 release scope** and **AUTHORIZED release execution** for it on the same
+> date. Both approvals are explicit confirmations in the current project conversation and are recorded in
+> `docs/standards/reviews/dependency-policy-decision-resolution.md` (B10 model) and in the Community governance handoff. The
+> approvals are **distinct**: B10 authorises the implementation, the release-owner approval authorises the release scope, and the
+> release-execution authorization authorises publication, tagging and Community consumer migration. None of them authorises WP-C4,
+> WP-D*, an unrelated package or release, or any governance decision outside the scope below.
+>
+> **Approved WP-C3 scope.** Implement ADR-035 D-03 stage 2 (`packed-surface`, design §12, rules `ARCH-PACK-001…006`), its design
+> §10 tests and negative fixtures, and real packed-tarball verification on Node 24.0.0 and the current 24.x; integrate a stage-2 step
+> into the Development and Community release workflows **after `Build` and before publication**; and execute the resulting
+> `@comity-dev/validate` minor release with any dependent package the existing Changesets calculation requires (tag + GitHub release),
+> including the Community consumer/lockfile bump if the calculation requires it. **Excluded:** WP-C4, WP-D*, unrelated packages and
+> releases, stage-1 behaviour changes, and any governance decision not recorded here. **Enforcement activation is not included**:
+> WP-A1, WP-A4 and WP-B formal ratification gate that, and they are incomplete.
 
 ## 1. Decisions and where they are recorded
 
@@ -38,7 +64,7 @@ ADRs it references.** Each work package below needs its own implementation task 
 |---|---|---|
 | A. `workspace:^` for internal sibling references — scoped to **every published sibling dependency under Comity governance** (`@comity/*` in community, `@comity-dev/*` in development, and consuming repositories under ADR-036); coordinated patch release; Changesets peer-major cascade accepted as the default release strategy (D-01); mandatory `Version Packages` review, trigger-based (D-07) | ADR-033; `docs/standards/release-review.md` | **ADR-033 Accepted** (2026-11-04); **`release-review.md` Adopted** (2026-11-04) |
 | B. One ESM build for **every** Comity package including CLI and `queue-pg-boss`; `import` and Node 24+ `require(esm)` resolve to it; stop `dist/cjs`; supersede ADR-022's distribution paragraph (D-02) | ADR-034; ADR-022 (partially superseded) | **ADR-034 Accepted** (2026-11-04); ADR-022 remains `Accepted` — definitive supersession pointer in place, historical text preserved. **Implementation VERIFIED COMPLETE on published tarballs** (2026-11-04); formal WP-B completion ratification and release semver class remain pending owner approval |
-| C. `@comity-dev/validate`: stage 1 workspace declaration validation and stage 2 tarball validation (D-03); name-agnostic deterministic discovery (D-04); missing-build `CONFIGURATION-ERROR` and always-visible findings (D-05); `typescript` as runtime dependency | ADR-035; `packages/validate/docs/declaration-dependencies-design.md` | **ADR-035 Accepted** (2026-11-04, with severity `error` and `typescript` as a runtime dependency); design document Draft; **stage 1 (WP-C1) and WP-C2 COMPLETE and verified 2026-11-05; stage 2 (WP-C3) not implemented** |
+| C. `@comity-dev/validate`: stage 1 workspace declaration validation and stage 2 tarball validation (D-03); name-agnostic deterministic discovery (D-04); missing-build `CONFIGURATION-ERROR` and always-visible findings (D-05); `typescript` as runtime dependency | ADR-035; `packages/validate/docs/declaration-dependencies-design.md` | **ADR-035 Accepted** (2026-11-04, with severity `error` and `typescript` as a runtime dependency); **stage 1 (WP-C1) and WP-C2 COMPLETE and verified 2026-11-05; stage 2 (WP-C3) `AUTHORIZED` and `IMPLEMENTED` 2026-11-05, release authorized; enforcement gated on WP-A1/WP-A4/WP-B** |
 | D. Comity-wide dependency policy for packages outside community (peer + dev / dependencies / dev-only / none, per package), enforced locally per repository (D-08) | ADR-036; `commerce/docs/governance/package-dependency-policy.md` | **ADR-036 Accepted** (2026-11-04, verification baseline pnpm 12.16.1 / Node 24+); Commerce policy `Proposed` — **adoption AUTHORIZED** by the Commerce owner (B8(a), 2026-11-04); operative effect awaits **B8(b)** (repository/namespace/`repository.type`, still OPEN) and **WP-D1** (NOT AUTHORIZED) |
 | E. Local development with packed tarballs and `pnpm.overrides` | ADR-036 §3; Commerce policy §6 | **ADR-036 Accepted**; documented policy only — not enforced, no job exists |
 | F. Clean-consumer verification before publishing, **separate from** producer declaration/tarball validation (D-06) | ADR-036 §4; Commerce policy §7 | **ADR-036 Accepted**; documented policy only — no clean-consumer job exists in any repository |
@@ -71,7 +97,7 @@ Sizes are relative (S/M/L). Priority: **P0** correctness blocker; **P1** require
 | WP-B | Remove `dist/cjs`; one uniform ESM export map for **all** packages (flat `dist/`, `types` + `default`; ADR-034 Amendment 1) **including CLI packages and `queue-pg-boss`** (no exception); tests on tarballs; update docs, incl. `queue-pg-boss` docs and `runtime-support.md` §1–§3 | development (`comity-build`) + community (export maps) | **P0**, Independent | M | WP-0 (ADR-034) | ADR-034 validation requirements 1–5 pass on Node 24.0.0 and current 24.x for every package. **Status: implementation VERIFIED COMPLETE on all 54 published tarballs / 123 subpaths (2026-11-04); formal completion ratification PENDING OWNER APPROVAL; semver class PENDING RELEASE OWNER; releases PUBLISHED.** **A1 (CONFIRMED 2026-11-04): WP-B is a hard prerequisite — no Commerce package may be published before WP-B is completed.** WP-B must ensure the Commerce packages use the ESM-only distribution model required by ADR-034, and packaging and toolchain compatibility must be verified before the first publication. **The A1 confirmation does NOT authorise WP-B** (B10) |
 | WP-C1 | Implement stage 1 workspace `declarations` engine, deterministic name-agnostic discovery, always-visible findings, and tests | development | P1, Independent | M | WP-0 (ADR-035) | Design §10 tests pass; **zero findings** on the current comity-community build, with total and reachable counts reported separately. **Status: COMPLETED 2026-11-05.** B10 authorization was granted 2026-11-04. Evidence: 25 design §10 tests; `pnpm type-check` pass; `pnpm --filter @comity-dev/validate test` 79/79 pass and full `pnpm test` pass; `pnpm self-validate` pass; Community validation pass with 54 packages / 537 declaration files (485 entry-reachable) / 0 findings / exit 0; `git diff --check` clean in all three repositories. Full command evidence is in the decision-resolution record's B10 model. |
 | WP-C2 | Release `@comity-dev/validate` (minor); bump consumers; add stage 1 to CI after build | development, community | P1 | S | WP-C1 | CI runs the engine after `pnpm build`. **Status: COMPLETED 2026-11-05.** Published `@comity-dev/validate@0.3.0` and `@comity-dev/cli@0.2.4` at Development commit `a403257`; annotated tags `23bfae2` and `8a1fd4e` target that commit, with GitHub releases. Community PR #16 (`83c8dce`) migrated consumers and lockfile. Community CI run `42000652819` passed with `Build` before `Validate`, reporting 54 publishable packages / 537 declaration files (485 entry-reachable) / 324 external references / 0 findings; main CI `42001013330` and Release `42001013288` passed, with no new publication. |
-| WP-C3 | Implement stage 2 `packed-surface` (tarball) validation (design §12); add to release CI before publication | development, community | P1 (before first Commerce publication) | M | WP-C1 | Design §12 tests pass; validates `files`/`exports` effects on real tarballs |
+| WP-C3 | Implement stage 2 `packed-surface` (tarball) validation (design §12); add to release CI before publication. **Status: `AUTHORIZED` (B10) and `IMPLEMENTED` 2026-11-05; release-scope approved and release execution authorized; release in progress; ENFORCEMENT GATED.** Evidence, C1 decision and gates in §4.1 | development, community | P1 (before first Commerce publication) | M | WP-C1 (complete); **C1 (resolved: `pnpm pack` + system `tar`, no new dependency)**; B10; release-owner approval — all satisfied. Enforcement gates: WP-A1/WP-A4 exact-pin migration or recorded exceptions; WP-B formal ratification | All six `ARCH-PACK` rules verified on real tarballs; a stage-2 failure blocks `Release`/publication once `COMITY_PACKED_SURFACE_ENFORCEMENT` is enabled |
 | WP-D1 | Adopt Commerce policy; amend 07 §4 sketch under freeze change control | commerce | P1 | S | ADR-036 `Accepted` (done); **B8(a)** adoption authorised (done); **B9** ADR-036 reference alignment (done) | **Status: NOT AUTHORIZED, NOT STARTED.** Adoption is authorised (B8a) and the two frozen documents' ADR-036 references are aligned (B9). The **`07 §4` manifest sketch is still uncorrected** — that change is **outside B9's authorised scope** and is proposed as **B9(b) / WP-D1**, **PENDING OWNER APPROVAL**. WP-D1 completion still requires the sketch correction plus **B10** authorisation |
 | WP-D2 | Document local tarball workflow in the Commerce repository when it exists | commerce | P2 | S | Commerce repository approved | Procedure of policy §6 reproducible |
 | WP-D3 | Commerce producer validation (stages 1–2 or equivalent script, run in the Commerce workspace) **and** a separate clean-consumer CI job (fresh directory; does not invoke the validator) | commerce | P1 (before first publication) | L | Commerce workspace; WP-C1/WP-C3 or equivalent script | Policy §7 jobs pass and their negative controls fail as designed |
@@ -155,7 +181,7 @@ WP-B COMPLETED (A1: CONFIRMED hard prerequisite) ──────────�
 ```
 
 - **WP-C before or alongside WP-A1.** Stage 1 has zero baseline findings, so it blocks nothing, and it guards the next migration. Preferred order of implementation:
-  **WP-C1 → WP-A1 → WP-A2**, delivered as separate PRs. WP-B is already implemented and published. Stage 2 (WP-C3) is needed before publications whose tarball surface must be validated and before the first Commerce publication.
+  **WP-C1 → WP-A1 → WP-A2**, delivered as separate PRs. WP-B is already implemented and published. Stage 2 (WP-C3) is needed before publications whose tarball surface must be validated and before the first Commerce publication. WP-C3 implementation may start after WP-C1 and B10 authorization, in parallel with WP-A1; it must not become a blocking release gate until the enforcement gates in §4.1 are satisfied.
 - **WP-B is complete in evidence and shipped separately.** It touched `comity-build` and export maps only and shipped as a **patch** (ADR-034). B7's proposed closure is “not applicable: WP-B shipped separately”; release-owner confirmation remains pending.
 - **WP-B is a hard prerequisite for the first Commerce publication (A1, CONFIRMED 2026-11-04).** **No Commerce package may be published
   before WP-B is completed.** WP-B must ensure the Commerce packages use the ESM-only distribution model required by ADR-034, and
@@ -173,6 +199,46 @@ WP-B COMPLETED (A1: CONFIRMED hard prerequisite) ──────────�
 | Commerce workspace scaffolding | repository, namespace and ownership decisions (freeze #1–#3); ADR-036 accepted |
 | First Commerce package **publication** | **WP-B COMPLETED (A1 — CONFIRMED hard prerequisite)**, WP-A2, WP-C1/C2 and WP-C3 (or an equivalent producer-side script), WP-D1, WP-D3 (producer validation and a separate clean-consumer job). ADR-034 applies to every Comity package, so Commerce packages follow the same ESM-only contract and the `require` leg of the clean-consumer job is unconditional. **A1 was CONFIRMED by the architecture owner on 2026-11-04: no Commerce package may be published before WP-B is completed**; WP-B must ensure the Commerce packages use ADR-034's ESM-only distribution model, and packaging and toolchain compatibility must be verified before the first publication (decision-resolution record §3 A1) |
 | Comity-wide package publication correctness | WP-A1/A2, WP-B, WP-C (C1–C3) |
+
+### 4.1 WP-C3 — implemented, release authorized, enforcement gated
+
+**Definition.** WP-C3 is ADR-035 D-03 stage 2 (`packed-surface`), specified in `packages/validate/docs/declaration-dependencies-design.md`
+§12. It runs in the producer repository after build and before publication, reads the tarball's file list, contents and packed
+`package.json` (never the working-tree `dist`), and applies `ARCH-PACK-001…006`. **Status: `AUTHORIZED` under B10 and `IMPLEMENTED`
+on 2026-11-05; release-scope approved and release execution authorized; ENFORCEMENT GATED.** Decision **C1** is resolved as `pnpm
+pack --pack-destination` for the tarball plus the system `tar` (`-tzf`, `-xOf`) to read it — **no new dependency**. Evidence:
+`packages/validate/src/engines/packed-surface.ts`, 18 real-tarball tests in
+`packages/validate/src/engines/__tests__/packed-surface.test.ts`, and design §12 "Implementation notes". Verified on Node 24.0.0 and
+24.19.0: Development 8 tarballs → 7 findings, Community 54 tarballs → 120 findings, **all `ARCH-PACK-005`** (the WP-A4/WP-A1 exact
+pins) and none of `-001`/`-002`/`-004`/`-006`. **Enforcement is inactive**: the release workflows run the step report-only and the
+default `runValidation` path does not run the category.
+
+**Enforcement gates for making the category blocking.** These gates do not prevent implementation or negative-control testing; they
+prevent attaching a failing check to publication:
+
+- **WP-A1 (Community).** Current `83c8dce` still has **120** sibling `workspace:*` references in **50** packages (94
+  `dependencies` + 26 `peerDependencies`; 2 sibling `devDependencies`; 0 exceptions; 0 `workspace:^`). `pnpm pack` rewrites
+  `workspace:*` to an exact version, so `ARCH-PACK-005` would report exact sibling pins. WP-A1 is `NOT AUTHORIZED`. Do not make
+  `packed-surface` blocking for Community releases until WP-A1 is complete or exceptions are recorded.
+- **WP-A4 (Development).** **7** `@comity-dev/*` sibling `workspace:*` references remain (`cli` 3, `validate` 4). They have the
+  same exact-pin effect. WP-A4 is P2 and independent, not a roadmap prerequisite of WP-C3, but it must be completed or excepted
+  before `packed-surface` blocks Development releases.
+- **WP-B.** The ESM-only implementation is verified complete and published, so the `ARCH-PACK-006` technical condition (no
+  `dist/cjs`; `import`/`require` resolve to the same ESM artifact) is expected to be satisfied. Formal completion ratification
+  remains pending and is A1's hard prerequisite for the first Commerce publication; it is not a technical blocker to WP-C3.
+- **WP-C1 / C1.** WP-C1 is complete; C1 (tarball-reading dependency versus system `tar`, including portability, security,
+  determinism, error mapping and CI compatibility) remains open for the WP-C3 implementation owner.
+
+**Release-workflow integration (implemented).** `development/.github/workflows/release.yml` and
+`community/.github/workflows/release.yml` run `pnpm validate:packed-surface` **after `Build` and before the Changesets `Release`
+step**, so a stage-2 failure blocks publication when enforcement is active. Both repositories expose the script
+(`development`: the freshly built validator CLI; `community`: the `comity-validate` bin of `@comity-dev/validate`). Dependency-first
+ordering is unchanged: each repository calculates and publishes its own dependency order before its dependents release.
+
+**Blockers (enforcement only).** The implementation and the release are authorized and complete; **enforcement activation** is
+blocked by WP-A1 and WP-A4 exact-pin migration or recorded exceptions, and by WP-B formal ratification. Until those are recorded the
+workflow step is report-only (it prints findings and does not fail the job) and `COMITY_PACKED_SURFACE_ENFORCEMENT` stays unset.
+Setting that repository variable to `true` is the activation, and it is a separate, explicitly gated action.
 
 ## 5. Release plan detail
 
@@ -234,8 +300,9 @@ B maintainer governance, C implementation, D deferred) with its authority and la
    alignment — **AUTHORIZED 2026-11-04 (B9**, narrow scope, executed in the two named frozen documents**)**. **Still outstanding:**
    repository, namespace and `repository.type` (**B8(b)**, freeze decisions #1–#3, unchanged by this work) and B9's `07 §4`
    **manifest-sketch** change control, which is outside B9's authorised scope.
-5. **Implementation owners (C), within WP-C3:** tarball reading method (**C1**) remains open. WP-C1 choices C2–C4 and WP-B choices
-   C5–C6 are settled/executed; no further decision is needed for WP-C1 or WP-B.
+5. **Implementation owners (C), within WP-C3:** tarball reading method (**C1**) is **resolved** — `pnpm pack` produces the tarball and
+   the system `tar` reads it, with **no new dependency** (design §12, "Implementation notes"). WP-C1 choices C2–C4 and WP-B choices
+   C5–C6 are settled/executed; no further decision is needed for WP-C1, WP-C3 or WP-B.
 6. **Deferred (D):** deprecation of old exact-pinned versions (a registry-maintenance concern, decided after WP-A2 publishes; no
    schedule is proposed); a split-release pilot; extending `repository-ownership.md` to Commerce. ~~Extension of the range rule to
    `@comity-dev/*`~~ is **no longer deferred**: ADR-033's "Scope of the range rule" resolves it — Decision 1 applies to those 7
@@ -244,11 +311,13 @@ B maintainer governance, C implementation, D deferred) with its authority and la
    authorises each work package and approves its scope before execution; **repository maintainers** manage and verify repository changes
    within the approved scope; the **release owner** retains approval authority for release-specific activities; the **Commerce owner**
    retains approval authority for Commerce-specific activities. An `Accepted` ADR does **not** automatically authorise implementation of a
-   work package. **As at this record WP-0, WP-C1 and WP-C2 are `COMPLETED`; no other implementation work package is
-   `AUTHORIZED` or `STARTED`.** WP-C1 was authorized 2026-11-04 and completed 2026-11-05. WP-C2 was authorized under B10, its
-   release scope was approved, and release execution was authorized on 2026-11-05; it is `COMPLETED` (2026-11-05) with the
-   published packages, tags, Community migration and CI evidence recorded above. WP-B remains evidence-complete and published,
-   with formal completion ratification pending owner approval. See the decision-resolution record's "B10 responsibility model".
+   work package. **As at this record WP-0, WP-C1 and WP-C2 are `COMPLETED`, and WP-C3 is `AUTHORIZED` and `IMPLEMENTED` with its
+   release authorized; no other implementation work package is `AUTHORIZED` or `STARTED`.** WP-C1 was authorized 2026-11-04 and
+   completed 2026-11-05. WP-C2 was authorized under B10, its release scope was approved, and release execution was authorized on
+   2026-11-05; it is `COMPLETED` (2026-11-05) with the published packages, tags, Community migration and CI evidence recorded above.
+   WP-C3 was authorized under B10 on 2026-11-05, its release scope was approved and release execution authorized; it is implemented and
+   verified, its release is in progress, and its **enforcement** stays gated on WP-A1/WP-A4/WP-B (§4.1). WP-B remains evidence-complete
+   and published, with formal completion ratification pending owner approval. See the decision-resolution record's "B10 responsibility model".
 8. **pnpm 12.16.1 toolchain migration (WP-E)** — recorded in §2 as a **separate coordinated activity** across all three repositories.
    pnpm 12.16.1 is confirmed as the intended version and all three repositories must eventually be migrated. **Status: NOT AUTHORIZED,
    NOT STARTED.** It requires its own scoped work package and explicit authorisation under B10. **Nothing was migrated by this document**,

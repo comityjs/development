@@ -25,6 +25,7 @@ The engines wrap shared Development-owned tooling:
 | `semgrep`       | `semgrep` + `@comity-dev/semgrep-rules` | Structural source patterns.                                |
 | `adapter-peers` | in-process                              | Adapter peer-dependency contract.                          |
 | `declarations`  | in-process + TypeScript                 | Published declaration dependency contract (ADR-035).       |
+| `packed-surface` | in-process + `pnpm pack` + system `tar` | Packed tarball surface: rules `ARCH-PACK-001…006` (ADR-035 stage 2). |
 
 Engines report one of `PASS` / `FAIL` / `NOT-RUN` / `TOOL-UNAVAILABLE` / `CONFIGURATION-ERROR` / `EXECUTION-ERROR` / `NOT-APPLICABLE`. `PASS` is only reported when the engine actually executed.
 
@@ -56,6 +57,22 @@ comity-validate --only=declarations
 not evaluated: `--only semgrep` does not check ESLint-owned policy, including
 the required `@internal` marker rule (`@comity-dev/require-internal-marker`).
 Use the default run (no `--only`) for full policy coverage.
+
+### `packed-surface` (ADR-035 stage 2)
+
+`--only=packed-surface` packs every publishable package with `pnpm pack`, reads the resulting tarball (file list,
+contents and packed `package.json`) with the system `tar`, and applies `ARCH-PACK-001…006`. It never reads the
+workspace `dist`, so it observes the effect of the `files` field, `exports` and `workspace:` rewriting — which stage 1
+cannot see.
+
+It is deliberately **not part of the default run**: it packs every package (slower) and it runs in the producer
+repository after `pnpm build` and before publication. Both release workflows run it after `Build` and before the
+Changesets `Release` step.
+
+**Enforcement is gated.** The release-workflow step blocks publication only when the repository variable
+`COMITY_PACKED_SURFACE_ENFORCEMENT` is `true`. It must stay unset until **WP-A1** (Community `workspace:*` migration),
+**WP-A4** (Development `@comity-dev/*` migration) and **WP-B** formal ratification are complete, because `pnpm pack`
+rewrites `workspace:*` to an exact pin and `ARCH-PACK-005` reports those pins.
 
 Exit codes:
 

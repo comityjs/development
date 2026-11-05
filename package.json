@@ -10,6 +10,7 @@
     "type-check": "pnpm -r --filter=./packages/* exec tsc -p tsconfig.json --noEmit",
     "test": "pnpm -r --filter=./packages/* run test",
     "self-validate": "pnpm build && node packages/validate/dist/bin/comity-validate.js --repo .",
+    "validate:packed-surface": "node packages/validate/dist/bin/comity-validate.js --only=packed-surface --repo .",
     "validate": "pnpm type-check && pnpm test && pnpm self-validate",
     "changeset": "changeset",
     "version": "changeset version",

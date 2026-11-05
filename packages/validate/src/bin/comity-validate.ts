@@ -11,7 +11,7 @@
  *   --verbose, -v        Print underlying tool output
  *   --repo <path>        Repository root (default: cwd)
  *   --only <category>    Only run a single category
- *                        (schema | metadata | config | dependencies | eslint | semgrep | adapter-peers | declarations | declaration-dependencies)
+ *                        (schema | metadata | config | dependencies | eslint | semgrep | adapter-peers | declarations | declaration-dependencies | packed-surface)
  *                        Default: run all categories.
  *
  * Exit codes:
@@ -71,7 +71,7 @@ Options:
   --verbose, -v        Print underlying tool output
   --repo <path>        Repository root (default: cwd)
   --only <category>    Only run a single category
-                       (schema | metadata | config | dependencies | eslint | semgrep | adapter-peers | declarations | declaration-dependencies)
+                       (schema | metadata | config | dependencies | eslint | semgrep | adapter-peers | declarations | declaration-dependencies | packed-surface)
 
 Exit codes:
   0  validation passed

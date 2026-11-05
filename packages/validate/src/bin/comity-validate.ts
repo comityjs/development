@@ -11,7 +11,7 @@
  *   --verbose, -v        Print underlying tool output
  *   --repo <path>        Repository root (default: cwd)
  *   --only <category>    Only run a single category
- *                        (schema | metadata | config | dependencies | eslint | semgrep | adapter-peers)
+ *                        (schema | metadata | config | dependencies | eslint | semgrep | adapter-peers | declarations | declaration-dependencies)
  *                        Default: run all categories.
  *
  * Exit codes:
@@ -71,7 +71,7 @@ Options:
   --verbose, -v        Print underlying tool output
   --repo <path>        Repository root (default: cwd)
   --only <category>    Only run a single category
-                       (schema | metadata | config | dependencies | eslint | semgrep | adapter-peers)
+                       (schema | metadata | config | dependencies | eslint | semgrep | adapter-peers | declarations | declaration-dependencies)
 
 Exit codes:
   0  validation passed
@@ -95,17 +95,26 @@ async function main(): Promise<void> {
       only: args.only,
     });
 
+    const exitCode = exitCodeForResult(result);
+
     console.log(formatSummary(result));
 
-    if (!result.passed && args.verbose) {
+    if (result.violations.length > 0) {
       console.log("");
       console.log(formatViolations(result.violations));
+    }
+
+    if (exitCode === ExitCode.CONFIG_ERROR && result.violations.length > 0) {
+      console.log("");
+      console.log(
+        "Configuration error(s) took precedence over validation findings (exit code 2).",
+      );
     }
 
     // A required tool that could not run must never surface as PASS:
     // report it with the documented TOOL_MISSING exit code instead of
     // fabricating a passing result.
-    process.exit(exitCodeForResult(result));
+    process.exit(exitCode);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
 

@@ -6,8 +6,9 @@
  * passes to specialized validators.
  */
 
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, matchesGlob, relative, resolve } from "node:path";
 
 export interface PackageRecord {
   /** The package's `name` field from its `package.json`. */
@@ -128,4 +129,186 @@ export async function discoverRepository({
     packages,
     config: config ?? {},
   };
+}
+
+export interface ExcludedPackage {
+  /** The absolute path of the excluded package directory. */
+  path: string;
+
+  /** The package's `name` field, when it has a readable string name. */
+  name: string | null;
+
+  /** Why this package is not publishable. */
+  reason: string;
+}
+
+export interface PublishableDiscovery {
+  /** The configured package roots, relative to the repository root. */
+  roots: string[];
+
+  /** Whether the default root was used because no explicit roots were configured. */
+  usedDefaultRoots: boolean;
+
+  /** Every discovered package with a readable manifest and a string name, including private packages. */
+  allPackages: PackageRecord[];
+
+  /** Packages that participate in stage 1 declaration validation. */
+  publishable: PackageRecord[];
+
+  /** Packages excluded from validation, with the reason recorded. */
+  excluded: ExcludedPackage[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readConfig(root: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(
+      readFileSync(join(root, "comity.config.json"), "utf8"),
+    );
+
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function configuredRoots(config: Record<string, unknown> | null): {
+  roots: string[];
+  usedDefaultRoots: boolean;
+  exclude: string[];
+} {
+  const packages = isRecord(config) && isRecord(config["packages"])
+    ? config["packages"]
+    : null;
+  const configured = packages?.["roots"];
+  const roots =
+    Array.isArray(configured) &&
+    configured.length > 0 &&
+    configured.every((root) => typeof root === "string")
+      ? configured
+      : ["packages"];
+  const defaulted =
+    !Array.isArray(configured) ||
+    configured.length === 0 ||
+    !configured.every((root) => typeof root === "string");
+  const excludeValue = packages?.["exclude"];
+  const exclude = Array.isArray(excludeValue)
+    ? excludeValue.filter((pattern): pattern is string => typeof pattern === "string")
+    : [];
+
+  return { roots, usedDefaultRoots: defaulted, exclude };
+}
+
+function isExcluded(relativePath: string, patterns: readonly string[]): boolean {
+  return patterns.some((pattern) => matchesGlob(relativePath, pattern));
+}
+
+/**
+ * Discover every package under the configured roots, with no namespace filter.
+ *
+ * This is the discovery used by the stage 1 and stage 2 engines. It deliberately
+ * does not change `discoverRepository`, whose existing engines still use the
+ * legacy name-based classification.
+ */
+export function discoverPublishablePackages(root: string): PublishableDiscovery {
+  const absRoot = resolve(root);
+  const config = readConfig(absRoot);
+  const { roots, usedDefaultRoots, exclude } = configuredRoots(config);
+  const allPackages: PackageRecord[] = [];
+  const publishable: PackageRecord[] = [];
+  const excluded: ExcludedPackage[] = [];
+
+  for (const relRoot of roots) {
+    const dir = join(absRoot, relRoot);
+
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) continue;
+
+    const entries = readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      const pkgDir = join(dir, entry.name);
+      const manifestPath = join(pkgDir, "package.json");
+
+      if (!existsSync(manifestPath) || !statSync(manifestPath).isFile()) continue;
+
+      let manifest: Record<string, unknown>;
+
+      try {
+        const parsed: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+        if (!isRecord(parsed)) {
+          excluded.push({
+            path: pkgDir,
+            name: null,
+            reason: "package.json is not a JSON object",
+          });
+          continue;
+        }
+
+        manifest = parsed;
+      } catch {
+        excluded.push({
+          path: pkgDir,
+          name: null,
+          reason: "package.json is not readable JSON",
+        });
+        continue;
+      }
+
+      const name = manifest["name"];
+
+      if (typeof name !== "string" || name.length === 0) {
+        excluded.push({
+          path: pkgDir,
+          name: null,
+          reason: "package.json has no string name",
+        });
+        continue;
+      }
+
+      const relativePath = relative(absRoot, pkgDir).split("\\").join("/");
+
+      if (isExcluded(relativePath, exclude)) {
+        excluded.push({
+          path: pkgDir,
+          name,
+          reason: "matched packages.exclude",
+        });
+        continue;
+      }
+
+      const comity = isRecord(manifest["comity"]) ? manifest["comity"] : null;
+      const layer = comity?.["layer"];
+
+      const record: PackageRecord = {
+        name,
+        path: pkgDir,
+        layer: typeof layer === "string" ? layer : null,
+        manifest,
+      };
+
+      allPackages.push(record);
+
+      if (manifest["private"] === true) {
+        excluded.push({
+          path: pkgDir,
+          name,
+          reason: "private package",
+        });
+      } else {
+        publishable.push(record);
+      }
+    }
+  }
+
+  allPackages.sort((a, b) => a.path.localeCompare(b.path));
+  publishable.sort((a, b) => a.path.localeCompare(b.path));
+  excluded.sort((a, b) => a.path.localeCompare(b.path));
+
+  return { roots, usedDefaultRoots, allPackages, publishable, excluded };
 }

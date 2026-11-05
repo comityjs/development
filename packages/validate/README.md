@@ -2,9 +2,10 @@
 
 ## Purpose
 
-Thin orchestrator over Comity shared validation tooling. Discovers a repository, invokes the specialized engines (schema, dependency-cruiser, ESLint, Semgrep, adapter-peers), and returns a normalized result.
+Thin orchestrator over Comity shared validation tooling. Discovers a repository, invokes the specialized engines (schema, dependency-cruiser, ESLint, Semgrep, adapter-peers, declarations), and returns a normalized result.
 
-This package is intentionally small. It does **not** implement any rule. Its only responsibilities are:
+This package is intentionally small. It does **not** implement source-code rules; the in-process declaration engine
+implements the rules in ADR-035. Its only responsibilities are:
 
 1. Discover repository configuration (`comity.config.json`).
 2. Discover packages.
@@ -23,6 +24,7 @@ The engines wrap shared Development-owned tooling:
 | `eslint`        | ESLint + `@comity-dev/eslint-plugin`    | Source-code lint policy.                                   |
 | `semgrep`       | `semgrep` + `@comity-dev/semgrep-rules` | Structural source patterns.                                |
 | `adapter-peers` | in-process                              | Adapter peer-dependency contract.                          |
+| `declarations`  | in-process + TypeScript                 | Published declaration dependency contract (ADR-035).       |
 
 Engines report one of `PASS` / `FAIL` / `NOT-RUN` / `TOOL-UNAVAILABLE` / `CONFIGURATION-ERROR` / `EXECUTION-ERROR` / `NOT-APPLICABLE`. `PASS` is only reported when the engine actually executed.
 
@@ -47,7 +49,7 @@ import {
 ```bash
 comity-validate --repo /path/to/repo
 comity-validate --only=schema        # one engine only
-comity-validate --only=eslint --verbose
+comity-validate --only=declarations
 ```
 
 `--only <category>` runs a single engine. Policies owned by another engine are
@@ -59,7 +61,7 @@ Exit codes:
 
 - `0` — validation passed
 - `1` — validation failed (violations found)
-- `2` — configuration / discovery error
+- `2` — configuration / discovery error (may co-occur with findings)
 - `3` — required tool not installed
 
 ## Environment

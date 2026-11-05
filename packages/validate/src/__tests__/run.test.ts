@@ -30,6 +30,7 @@ function resultWith(
       eslint: category(),
       semgrep: category(),
       adapterPeers: category(),
+      declarations: category(),
       ...categories,
     },
   };

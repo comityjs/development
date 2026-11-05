@@ -30,6 +30,9 @@ export interface FormatInput {
 
     /** Adapter peers validation results */
     adapterPeers: CategoryResult;
+
+    /** Published declaration dependency validation results */
+    declarations: CategoryResult;
   };
 }
 
@@ -41,6 +44,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   eslint: "Source rules (ESLint)",
   semgrep: "Structural patterns (Semgrep)",
   adapterPeers: "Adapter peers",
+  declarations: "Declarations",
 };
 
 function statusBadge(cat: CategoryResult): string {
@@ -123,6 +127,8 @@ export function formatSummary(result: FormatInput): string {
       cat.status === "NOT-APPLICABLE"
     ) {
       lines.push(`  ${label}: ${cat.reason ?? cat.status}`);
+    } else if (cat.status === "PASS" && cat.reason) {
+      lines.push(`  ${label}: ${cat.reason}`);
     }
   }
 

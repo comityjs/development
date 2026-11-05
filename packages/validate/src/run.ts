@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { discoverRepository, type Repository } from "./discover.js";
 import { runAdapterPeers } from "./engines/adapter-peers.js";
+import { runDeclarationDependencies } from "./engines/declaration-dependencies.js";
 import { runDepcruise } from "./engines/depcruise.js";
 import { runEslint } from "./engines/eslint.js";
 import { runSchema } from "./engines/schema.js";
@@ -74,6 +75,9 @@ export interface RunResult {
 
     /** Adapter peers validation results */
     adapterPeers: CategoryResult;
+
+    /** Published declaration dependency validation results */
+    declarations: CategoryResult;
   };
 }
 
@@ -203,6 +207,18 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
     adapterResult = emptyEngineResult("adapter-peers engine skipped");
   }
 
+  let declarationResult: EngineResult;
+
+  if (
+    !only ||
+    only === "declarations" ||
+    only === "declaration-dependencies"
+  ) {
+    declarationResult = runDeclarationDependencies(repo);
+  } else {
+    declarationResult = emptyEngineResult("declarations engine skipped");
+  }
+
   const violations: Finding[] = [];
 
   for (const r of [
@@ -211,13 +227,20 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
     eslintResult,
     semgrepResult,
     adapterResult,
+    declarationResult,
   ]) {
     if (Array.isArray(r.findings)) {
       violations.push(...r.findings);
     }
   }
 
-  const allExecuted = [depResult, eslintResult, semgrepResult, adapterResult];
+  const allExecuted = [
+    depResult,
+    eslintResult,
+    semgrepResult,
+    adapterResult,
+    declarationResult,
+  ];
   const allPassed =
     allExecuted.every(categoryIsAcceptable) &&
     categoryIsAcceptable(metaResult) &&
@@ -234,6 +257,7 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
       eslint: categoryOf(eslintResult),
       semgrep: categoryOf(semgrepResult),
       adapterPeers: categoryOf(adapterResult),
+      declarations: categoryOf(declarationResult),
     },
   };
 }

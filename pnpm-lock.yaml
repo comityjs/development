@@ -290,13 +290,13 @@ importers:
       eslint:
         specifier: ^9.39.5
         version: 9.39.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
 
 packages:
 

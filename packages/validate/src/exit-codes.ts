@@ -3,7 +3,7 @@
  *
  *   0 = validation passed
  *   1 = validation failed (violations found)
- *   2 = configuration / discovery error (cannot run)
+ *   2 = configuration / discovery error (cannot run; may co-occur with violations)
  *   3 = tool not installed (e.g. dependency-cruiser missing)
  */
 export const ExitCode = Object.freeze({

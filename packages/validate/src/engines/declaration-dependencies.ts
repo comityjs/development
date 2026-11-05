@@ -23,12 +23,13 @@ interface ParsedDeclaration {
   external: string[];
 }
 
-interface QueryContext {
+export interface QueryContext {
   packageRecord: PackageRecord;
   sets: DependencySets;
   packages: Map<string, PackageRecord>;
   rootReached: boolean;
   entry: string;
+  tool?: string | undefined;
 }
 
 const BUILTINS = new Set(builtinModules);
@@ -43,7 +44,7 @@ function stringSet(value: unknown): Set<string> {
   return new Set(Object.keys(value));
 }
 
-function dependencySets(manifest: Record<string, unknown>): DependencySets {
+export function dependencySets(manifest: Record<string, unknown>): DependencySets {
   const peers = stringSet(manifest["peerDependencies"]);
   const meta = isRecord(manifest["peerDependenciesMeta"])
     ? manifest["peerDependenciesMeta"]
@@ -65,7 +66,7 @@ function dependencySets(manifest: Record<string, unknown>): DependencySets {
   };
 }
 
-function isDeclarationFile(path: string): boolean {
+export function isDeclarationFile(path: string): boolean {
   return /\.d\.(?:ts|mts|cts)$/.test(path);
 }
 
@@ -129,8 +130,10 @@ function collectDeclarationTargets(pkg: PackageRecord): Map<string, Set<string>>
   return targets;
 }
 
-function parseDeclaration(file: string): ParsedDeclaration {
-  const text = readFileSync(file, "utf8");
+export function parseDeclarationText(
+  file: string,
+  text: string,
+): ParsedDeclaration {
   const sourceFile = ts.createSourceFile(
     file,
     text,
@@ -189,6 +192,10 @@ function parseDeclaration(file: string): ParsedDeclaration {
     relative: [...relativeSpecifiers],
     external: [...externalSpecifiers],
   };
+}
+
+function parseDeclaration(file: string): ParsedDeclaration {
+  return parseDeclarationText(file, readFileSync(file, "utf8"));
 }
 
 function resolveRelative(specifier: string, fromFile: string): string | null {
@@ -258,7 +265,7 @@ function finding(
   remediation: string,
 ): Finding {
   return {
-    tool: "declarations",
+    tool: context.tool ?? "declarations",
     rule,
     package: context.packageRecord.name,
     file,
@@ -270,7 +277,7 @@ function finding(
   };
 }
 
-function classifyExternal(
+export function classifyExternal(
   specifier: string,
   file: string,
   context: QueryContext,
@@ -394,7 +401,7 @@ function countDeclarationFiles(directory: string): number {
   return count;
 }
 
-function sortFindings(findings: Finding[]): void {
+export function sortFindings(findings: Finding[]): void {
   findings.sort((a, b) => {
     return (
       (a.package ?? "").localeCompare(b.package ?? "") ||

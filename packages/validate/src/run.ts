@@ -8,6 +8,7 @@ import { runAdapterPeers } from "./engines/adapter-peers.js";
 import { runDeclarationDependencies } from "./engines/declaration-dependencies.js";
 import { runDepcruise } from "./engines/depcruise.js";
 import { runEslint } from "./engines/eslint.js";
+import { runPackedSurface } from "./engines/packed-surface.js";
 import { runSchema } from "./engines/schema.js";
 import { runSemgrep } from "./engines/semgrep.js";
 import { ExitCode } from "./exit-codes.js";
@@ -78,6 +79,9 @@ export interface RunResult {
 
     /** Published declaration dependency validation results */
     declarations: CategoryResult;
+
+    /** Packed-surface tarball validation results */
+    packedSurface: CategoryResult;
   };
 }
 
@@ -219,6 +223,18 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
     declarationResult = emptyEngineResult("declarations engine skipped");
   }
 
+  let packedSurfaceResult: EngineResult;
+
+  if (only === "packed-surface") {
+    packedSurfaceResult = runPackedSurface(repo);
+  } else {
+    packedSurfaceResult = emptyEngineResult(
+      only
+        ? "packed-surface engine skipped"
+        : "packed-surface engine requires explicit --only=packed-surface",
+    );
+  }
+
   const violations: Finding[] = [];
 
   for (const r of [
@@ -228,6 +244,7 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
     semgrepResult,
     adapterResult,
     declarationResult,
+    packedSurfaceResult,
   ]) {
     if (Array.isArray(r.findings)) {
       violations.push(...r.findings);
@@ -240,6 +257,7 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
     semgrepResult,
     adapterResult,
     declarationResult,
+    packedSurfaceResult,
   ];
   const allPassed =
     allExecuted.every(categoryIsAcceptable) &&
@@ -258,6 +276,7 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
       semgrep: categoryOf(semgrepResult),
       adapterPeers: categoryOf(adapterResult),
       declarations: categoryOf(declarationResult),
+      packedSurface: categoryOf(packedSurfaceResult),
     },
   };
 }

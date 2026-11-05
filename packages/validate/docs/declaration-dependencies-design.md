@@ -195,11 +195,11 @@ finding, it is investigated before any severity change.
 2. Whether `--only` accepts both `declarations` and `declaration-dependencies`.
 3. ~~Whether a later rule should verify that every reachable declaration file is included by the package's `files` field~~ — resolved
    by D-03: that is stage 2 (§12), not stage 1.
-4. How stage 2 reads tarball contents (a small dependency vs the system `tar`) — an implementation choice for WP-C3 under the criteria in
-   ADR-035 Decision 14; not an approval item.
+4. ~~How stage 2 reads tarball contents~~ — resolved in WP-C3 (decision **C1**): `pnpm pack` produces the tarball, the system `tar`
+   lists and extracts it, and no new dependency is added (§12, "Implementation notes").
 5. ~~Zero-package status~~ — settled as an implementation contract (ADR-035 Decision 5).
 
-## 12. Stage 2 — packed-surface (tarball) validation (proposed; not implemented)
+## 12. Stage 2 — packed-surface (tarball) validation (implemented in WP-C3; enforcement gated)
 
 **Responsibility.** Validate the **actual published package surface**: the tarball produced by `pnpm pack` for each publishable
 package, after build and before publication, in the **producer repository**. This is where the effect of the package `files` field,
@@ -234,3 +234,35 @@ slower (it packs every publishable package) and runs before publication, not on 
 **Tests (at minimum).** An export target excluded by `files` → `-001`; a declaration excluded by `files` → `-002`; a dev-only
 reference in a packed declaration → `ARCH-DECL-DEP-002`; `workspace:` in the packed manifest → `-004`; an exact sibling pin → `-005`;
 `dist/cjs/` present → `-006`; failed pack → `CONFIGURATION-ERROR` exit 2.
+
+**Implementation notes (WP-C3, 2026-11-05).**
+
+*Tarball-reading mechanism (decision C1).* `pnpm pack --pack-destination <tmp>` produces the tarball in an isolated temporary
+directory, and the system `tar` (`-tzf` to list, `-xOf` to extract a single member) reads it. **No new dependency.** `pnpm` is
+already required by every producing repository and by the release workflows, and `pnpm pack` is the exact operation the release
+performs, so the artifact under test is the artifact that would ship. `tar` is present on every supported CI image and avoids
+adding a parser with its own security surface. The trade-off — a POSIX `tar` requirement — is reported as `TOOL-UNAVAILABLE`
+(exit 3) when absent, exactly like `semgrep`. Entry names are validated before use: absolute paths, `..` traversal and members
+outside the `package/` prefix are refused as `CONFIGURATION-ERROR`.
+
+*`ARCH-PACK-003` is an umbrella marker, not an emitted finding.* Its condition is "the external-reference check of §4 was run on
+the tarball"; emitting a finding for it would fail every package. The engine therefore performs that check (classification of
+every external reference in the packed declarations against the **packed** manifest) and reports violations under their specific
+`ARCH-DECL-DEP-001…005` code, while the run notes state that the packed-manifest external-reference check ran. This is exactly
+what the stage-2 test expectations above describe (a dev-only reference in a packed declaration yields `ARCH-DECL-DEP-002`).
+
+*`ARCH-PACK-005` exceptions* follow ADR-033 §4: a recorded justification in the package's `docs/conventions.md`. The engine accepts
+a line that names the sibling and records an exception or justification; no machine format is imposed because ADR-033 does not
+define one.
+
+*Integration and enforcement.* The category is registered in `RunResult["categories"]` (`packedSurface`), in `format.ts` and in the
+CLI help, and it runs when `--only=packed-surface` is selected. It is **deliberately not part of the default run**: it packs every
+publishable package and it is a pre-publication check, so making it part of every `validate` invocation would slow every commit and
+would currently fail on the WP-A1/WP-A4 `workspace:*` exact pins that `pnpm pack` produces. Both release workflows run
+`validate:packed-surface` after `Build` and before the Changesets `Release` step, report-only until the repository variable
+`COMITY_PACKED_SURFACE_ENFORCEMENT` is `true`. Activating that variable is the enforcement activation, and it is gated on WP-A1,
+WP-A4 and WP-B formal ratification.
+
+*Tests.* `packages/validate/src/engines/__tests__/packed-surface.test.ts` packs real tarballs for every rule (positive, negative,
+multiple violations, determinism, failed pack, exit codes) and covers the two cases `pnpm pack` cannot produce — an unrewritten
+`workspace:` specifier and a corrupted tarball — through `packedDependencySpecifierFindings` and `readTarball`.

@@ -33,6 +33,9 @@ export interface FormatInput {
 
     /** Published declaration dependency validation results */
     declarations: CategoryResult;
+
+    /** Packed-surface tarball validation results */
+    packedSurface: CategoryResult;
   };
 }
 
@@ -45,6 +48,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   semgrep: "Structural patterns (Semgrep)",
   adapterPeers: "Adapter peers",
   declarations: "Declarations",
+  packedSurface: "Packed surface",
 };
 
 function statusBadge(cat: CategoryResult): string {

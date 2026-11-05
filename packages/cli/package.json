@@ -35,9 +35,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@comity-dev/build": "workspace:*",
-    "@comity-dev/package-tools": "workspace:*",
-    "@comity-dev/validate": "workspace:*"
+    "@comity-dev/build": "workspace:^",
+    "@comity-dev/package-tools": "workspace:^",
+    "@comity-dev/validate": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

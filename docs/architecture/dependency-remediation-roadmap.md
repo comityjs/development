@@ -211,7 +211,7 @@ WP-B COMPLETED (A1: CONFIRMED hard prerequisite) ──────────�
 | First Commerce package **publication** | **WP-B COMPLETED (A1 — CONFIRMED hard prerequisite)**, WP-A2, WP-C1/C2 and WP-C3 (or an equivalent producer-side script), WP-D1, WP-D3 (producer validation and a separate clean-consumer job). ADR-034 applies to every Comity package, so Commerce packages follow the same ESM-only contract and the `require` leg of the clean-consumer job is unconditional. **A1 was CONFIRMED by the architecture owner on 2026-11-04: no Commerce package may be published before WP-B is completed**; WP-B must ensure the Commerce packages use ADR-034's ESM-only distribution model, and packaging and toolchain compatibility must be verified before the first publication (decision-resolution record §3 A1) |
 | Comity-wide package publication correctness | WP-A1/A2, WP-B, WP-C (C1–C3) |
 
-### 4.1 WP-C3 — implemented, release authorized, enforcement gated
+### 4.1 WP-C3 — implemented, released, enforcement gated
 
 **Definition.** WP-C3 is ADR-035 D-03 stage 2 (`packed-surface`), specified in `packages/validate/docs/declaration-dependencies-design.md`
 §12. It runs in the producer repository after build and before publication, reads the tarball's file list, contents and packed

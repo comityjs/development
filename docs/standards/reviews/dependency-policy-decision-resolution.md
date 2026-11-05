@@ -17,15 +17,17 @@
 > authorisation for every other work package** (WP-C1 and WP-C2 completed 2026-11-05; WP-C3 remains unauthorized).
 > **Update — final governance consolidation and implementation handoff (2026-11-04).** WP-B evidence is **VERIFIED COMPLETE** on
 > all 54 published tarballs / 123 subpaths at Node 24.19.0 and 24.0.0; the releases are **PUBLISHED**. Formal WP-B completion
-> ratification and the release semver class remain **PENDING OWNER APPROVAL**. WP-A1's baseline is re-verified at 120 references
+> ratification and the release semver class remain **PENDING OWNER APPROVAL** *(superseded 2026-11-05: WP-B `COMPLETED — FORMALLY
+> RATIFIED`, semver `patch` — see the ratification update below)*. WP-A1's baseline is re-verified at 120 references
 > in 50 packages (94 `dependencies` + 26 `peerDependencies`; 2 sibling `devDependencies`; 0 exceptions); WP-A1 remains **NOT
 > AUTHORIZED**, and WP-A2 remains **RELEASE APPROVED, NOT AUTHORIZED for implementation**. B8(b), B9(b), DR-05 #5, DR-05 #6,
-> DR-07 and DR-09 remain **PENDING OWNER APPROVAL**. B7's proposed closure is “not applicable: WP-B shipped separately”, pending
-> release-owner confirmation. The ADR-008 register data is now unambiguously canonical in comity-development; its schema
+> DR-07 and DR-09 remain **PENDING OWNER APPROVAL**. B7's proposed closure is “not applicable: WP-B shipped separately”, **CLOSED by the
+> release owner on 2026-11-05**. The ADR-008 register data is now unambiguously canonical in comity-development; its schema
 > `source` path was corrected and the data validates against the schema. **WP-C1 was `AUTHORIZED` under B10 by the architecture
 > owner on 2026-11-04 (explicit confirmation in the current project conversation; scope: WP-C1 only) and is `COMPLETED` as of
 > 2026-11-05 (see the closure update above). No other new work package
-> is `AUTHORIZED` or `STARTED`; WP-B is evidence-complete and published, with formal completion ratification `PENDING OWNER APPROVAL`.**
+> is `AUTHORIZED` or `STARTED`; WP-B is evidence-complete and published, with formal completion ratification `PENDING OWNER APPROVAL`
+> *(superseded 2026-11-05: `COMPLETED — FORMALLY RATIFIED`)*.**
 > **Neither architecture-owner approval, maintainer acceptance, release approval nor Commerce authorisation is implementation
 > authorisation. WP-C1 was `AUTHORIZED` under B10 and is now `COMPLETED`; no other new work package is `AUTHORIZED` or `STARTED`** — see the B10 model.
 > This governance consolidation implemented nothing; WP-B's implementation and releases are recorded separately above.
@@ -59,8 +61,8 @@
 > **Update — WP-C3 authorisation, release approval and implementation (2026-11-05).** The architecture owner **AUTHORIZED WP-C3
 > under B10** on **2026-11-05**, and the release owner **APPROVED the WP-C3 release scope** and **AUTHORIZED release execution** on
 > the same date. Both are explicit confirmations in the current project conversation. Approved scope and exclusions are recorded in
-> the B10 model below and in roadmap §4.1. **These approvals do not activate enforcement**: WP-A1, WP-A4 and WP-B formal ratification
-> gate a blocking stage-2 check and are incomplete, so stage 2 runs in the release workflows in report-only mode.
+> the B10 model below and in roadmap §4.1. **These approvals do not activate enforcement**: WP-A1 and WP-A4 gate a blocking stage-2 check and are
+> incomplete (WP-B was ratified on 2026-11-05), so stage 2 runs in the release workflows in report-only mode.
 > No WP-C4, WP-D* or unrelated release is authorized.
 > **Update — WP-C3 completion (2026-11-05).** WP-C3 is **`COMPLETED`** and released. Stage-2 `packed-surface` (`ARCH-PACK-001…006`) is
 > implemented with 18 real-tarball tests and design §12 "Implementation notes"; C1 is resolved as `pnpm pack` plus the system `tar`
@@ -69,6 +71,18 @@
 > `Build` and before `Release`, report-only. Verification on Node 24.0.0 and 24.19.0 produced 7 findings on Development and 120 on
 > Community, all `ARCH-PACK-005`, with stage 1 unchanged. **Enforcement remains inactive** — WP-A1, WP-A4 and WP-B formal
 > ratification are outstanding (§6.1).
+> **Update — WP-B formal completion ratification (2026-11-05).** The owner **RATIFIED WP-B / ADR-034 as `COMPLETED`** in an explicit
+> statement in the current project conversation on **2026-11-05**, on the recorded and independently verified evidence, and confirmed
+> that **no corrective WP-B2 is required**. The same statement **confirms the shipped semver class as `patch`** and **closes B7** as
+> *"not applicable: WP-B shipped separately"*. Evidence basis: implementation commit `cc0160b`; `@comity-dev/build@0.3.0` and
+> `@comity-dev/package-tools@0.2.1` (tags → `b279be7`, GitHub releases 2026-11-04T16:43, registry `latest`); Community
+> `@comity/order@0.9.2`, `@comity/cli@0.9.2`, `@comity/queue-pg-boss@0.10.1` and the remaining 0.9.2 packages (tags → `3f68585`); the
+> recorded verification of 54 published tarballs / 123 export subpaths at Node 24.19.0 and 24.0.0. Community release run `41875135341` is
+> red in its `Release` step because of a **post-publication** failure (fixed by PR #15, `bc858d7`); the publication itself succeeded and
+> the tags and registry state are unaffected. This supersedes the
+> `PENDING OWNER APPROVAL` statements for WP-B completion, its semver class and B7. The ratification **authorises no other work
+> package, no publication and no enforcement activation**: WP-A1, WP-A2, WP-A4, WP-C4 and WP-D* are unchanged, and stage-2
+> enforcement remains inactive.
 > **Evidence record:** `dependency-policy-independent-review.md` (IR-nn, unchanged) and `dependency-policy-maintainer-review.md`
 > (original findings preserved; a post-resolution note at its top marks superseded statements).
 
@@ -93,13 +107,13 @@ behaviour) is ordinary work inside WP-C1; it needs no further authority beyond t
 > **Statuses below reflect the WP-C1 closure (2026-11-05); historical status statements are preserved as written.** B-items marked
 > ~~struck~~ are closed; the authoritative per-item outcomes are the §3 rows. **WP-C1 is `COMPLETED`; no other implementation work
 > package is `AUTHORIZED` or `STARTED`** — every other one still needs B10 authorisation (see the "B10 responsibility model"
-> subsection). WP-0 is complete; WP-B is evidence-complete and published, with formal completion ratification
-> `PENDING OWNER APPROVAL`.
+> subsection). WP-0 is complete; **WP-B is `COMPLETED — FORMALLY RATIFIED` (2026-11-05)**, with no corrective WP-B2 required, its
+> semver class confirmed as `patch` and B7 closed (see the ratification update above).
 
 | ID | Affected ADR(s) / documents | Documentation status | Implementation status | Remaining action |
 |---|---|---|---|---|
 | D-01 | ADR-033 (Decision 1 scope, "Scope of the range rule", Decision 9, cascade section); `release-review.md` §1, §5.1; roadmap (WP-A3 closed; WP-A4 added) | Reconciled; ADR-033 `Accepted`; `release-review.md` `Adopted` | None required (no config change); pilot is optional future work | ~~B1~~ **done**; ~~B5~~ **done**; ~~B6~~ **APPROVED** (WP-A2 gate satisfied); **WP-A1/WP-A2/WP-A4 authorisation (B10) outstanding** |
-| D-02 | ADR-034 (rewritten); ADR-022 (definitive supersession pointer); `repository.md`, `SKILL.md`, `AGENT.md`; roadmap | Reconciled; descriptive docs state current behaviour plus pointer; `runtime-support.md` and `queue-pg-boss` docs updated with WP-B | **WP-B implementation VERIFIED COMPLETE on published tarballs (2026-11-04); releases PUBLISHED.** Formal completion ratification and semver class **PENDING OWNER APPROVAL** | ~~B2~~ **done**; **A1 CONFIRMED** (WP-B is a hard prerequisite for the first Commerce publication); WP-B ratification pending; B7 pending release owner |
+| D-02 | ADR-034 (rewritten); ADR-022 (definitive supersession pointer); `repository.md`, `SKILL.md`, `AGENT.md`; roadmap | Reconciled; descriptive docs state current behaviour plus pointer; `runtime-support.md` and `queue-pg-boss` docs updated with WP-B | **WP-B implementation VERIFIED COMPLETE on published tarballs (2026-11-04); releases PUBLISHED.** **`COMPLETED — FORMALLY RATIFIED` 2026-11-05**, semver `patch` confirmed | ~~B2~~ **done**; **A1 CONFIRMED** (WP-B is a hard prerequisite for the first Commerce publication); WP-B ratified 2026-11-05; B7 closed |
 | D-03 | ADR-035 Decisions 1–3; design §12; roadmap WP-C1/C3 | Reconciled; ADR-035 `Accepted` | **WP-C1 and WP-C2 COMPLETE and verified (2026-11-05); stage 2 (WP-C3) not implemented.** | ~~B3~~ **done**; **WP-C1 and WP-C2 COMPLETED 2026-11-05; WP-C3 B10 authorization outstanding** |
 | D-04 | ADR-035 Decisions 4–6; design §2 | Reconciled | **Implemented in WP-C1 and verified:** `discoverPublishablePackages` is used by the declarations engine; legacy `discoverRepository` is unchanged. | Implementation choices C2, C3 settled in WP-C1 |
 | D-05 | ADR-035 Decisions 11–13; design §9 | Reconciled | **Implemented in WP-C1 and verified:** declaration engine, exit-2 mapping and always-visible findings are present and tested. | No further decision; WP-C2 completed 2026-11-05, WP-C3 remains unauthorized |
@@ -138,12 +152,12 @@ document supports it; otherwise "not named in the documents".
 | # | Question | Evidence and constraints | Authority | ADR / WP | Blocks | Latest point |
 |---|---|---|---|---|---|---|
 | ~~B1~~ **CLOSED** | Accept, amend or reject ADR-033 — **Accepted 2026-11-04** as written: Decision 1 scope (incl. `@comity-dev/*`), cascade default, coordinated patch release as a separate migration activity, split release only via a separately authorised pilot, **no deprecation schedule** | ADR-033 `Accepted` | Maintainers — **decided** | ADR-033 | WP-A1/WP-A2 still need their own implementation authorisation (B10); WP-A2 also needs B6 | Closed |
-| ~~B2~~ **CLOSED (acceptance only)** | Accept ADR-034 — **Accepted 2026-11-04** as written, including the partial supersession of ADR-022. **The semver class was NOT decided at acceptance** (patch proposed; `queue-pg-boss` is not peered and may be classed separately); it remains a release-time approval | ADR-034 `Accepted`; ADR-022 pointer finalised; WP-B implementation VERIFIED COMPLETE; releases PUBLISHED | Maintainers — **decided**; semver class **PENDING RELEASE OWNER** | ADR-034 | WP-B formal completion ratification; semver confirmation | Implementation and release complete; formal ratification and semver pending |
+| ~~B2~~ **CLOSED (acceptance only)** | Accept ADR-034 — **Accepted 2026-11-04** as written, including the partial supersession of ADR-022. **The semver class was NOT decided at acceptance** (patch proposed; `queue-pg-boss` is not peered and may be classed separately); it remains a release-time approval | ADR-034 `Accepted`; ADR-022 pointer finalised; WP-B implementation VERIFIED COMPLETE; releases PUBLISHED | Maintainers — **decided**; semver class **CONFIRMED as `patch` on 2026-11-05** by the release owner | ADR-034 | WP-B formal completion ratification; semver confirmation | **Closed 2026-11-05:** WP-B ratified `COMPLETED`; semver `patch` confirmed |
 | ~~B3~~ **CLOSED** | Accept ADR-035 — **Accepted 2026-11-04** with both points confirmed: severity **`error`** from day one (**Decision 9 guard preserved**) and `typescript` a runtime `dependency` of `@comity-dev/validate` (`^5.9.3`) | ADR Decisions 9 and 14; baseline counts independently reproduced | Maintainers — **decided** | ADR-035 | WP-C1 and WP-C2 are COMPLETED (2026-11-05); WP-C3 still needs B10 authorization; the `typescript` manifest change is implemented | Closed |
 | ~~B4~~ **CLOSED** | Accept ADR-036 — **Accepted 2026-11-04**. **Toolchain correction:** the verification baseline is **pnpm 12.16.1 / Node 24+**, superseding the pnpm 10.13.x previously proposed; it is a verification baseline, **not** a consumer minimum-version guarantee | ADR §4b and "Confirmed at acceptance"; Commerce adoption remains separate | Maintainers — **decided**; Commerce owner for Commerce adoption (roadmap §8.5) | ADR-036 | WP-D1 still needs B10 and the freeze change control (B9) | Closed |
 | ~~B5~~ **CLOSED** | Formally adopt `release-review.md` — **Adopted 2026-11-04**, effective on adoption. Mandatory for every `Version Packages` PR; full review only when triggers T1–T6 apply; WP-A2 the recommended pilot; T6 calibration (C8) unchanged | D-07 approved; the standard is now `Adopted` | Maintainers — **decided** | `release-review.md` | In force for WP-A2's `Version Packages` PR | Closed |
 | ~~B6~~ **APPROVED** | Approve the coordinated patch release (WP-A2) — **APPROVED by the user (release owner) 2026-11-04.** The **release-owner approval gate for WP-A2 is SATISFIED**. The existing WP-A2 **scope and conditions are preserved unchanged** (roadmap §2 WP-A2, §5.1): all packages with sibling edges in **one** `Version Packages` PR, **patch only**; packed manifests carry `^<version>`; the clean-consumer checks of ADR-033 pass; the `release-review.md` gate applies. **This approval is not authorisation for unrelated release activities and is not a scope expansion.** | Roadmap §8.2; §5.1; `release-review.md` | Release owner — **decided** | ADR-033; WP-A2 | WP-A2 execution. **WP-A2 is RELEASE APPROVED but implementation PENDING OWNER APPROVAL and NOT STARTED**, and it still depends on **WP-A1**, which is **NOT AUTHORIZED** (B10) — so execution cannot begin until WP-A1 is authorised and completed | Gate satisfied 2026-11-04 |
-| B7 | Whether WP-B shares WP-A2's release train | **Evidence: WP-B is already released separately.** Proposed closure: **“not applicable: WP-B shipped separately.”** Do not merge retrospectively; doing so would exceed B6's 50-package scope. **STATUS: PENDING OWNER APPROVAL** (release owner). | Release owner — **pending** | WP-A2, WP-B | None if closed; no new release work | Release-owner confirmation at final handoff |
+| ~~B7~~ **CLOSED 2026-11-05** | Whether WP-B shares WP-A2's release train | **Evidence: WP-B is already released separately.** **Closure adopted by the release owner on 2026-11-05: “not applicable: WP-B shipped separately.”** Do not merge retrospectively; doing so would exceed B6's 50-package scope. | Release owner — **closed 2026-11-05** | WP-A2, WP-B | None; no new release work | Closed |
 | ~~B8~~ **PARTIALLY CLOSED — adoption AUTHORIZED** | The original B8 row conflated two distinct Commerce-owner decisions; they are separated here. **(a) Commerce adoption of the Comity dependency policy — AUTHORIZED by the user (Commerce owner) 2026-11-04.** The Commerce owner has authorised adoption of the Comity dependency policy (`commerce/docs/governance/package-dependency-policy.md`) in the Commerce repository. This authorisation **does not reopen or modify any ADR already Accepted** in the Comity governance repositories, and **does not authorise unrelated Commerce implementation work**; only the documentation/governance changes required to reflect it were made. (b) Commerce repository, namespace and `repository.type` (freeze decisions #1–#3) — status: **PENDING OWNER APPROVAL**. The Commerce namespace stays undecided and `comity validate` in Commerce still depends on `repository.type`. | Commerce policy header, §1, §9; roadmap §8.4/§8.5 | Commerce owner — **(a) decided; (b) undecided** | Commerce policy §1, §9 | (a) satisfies WP-D1's adoption precondition (WP-D1 itself still needs B10 authorisation). (b) still blocks WP-D2, WP-D3 and Commerce scaffolding | (a) Authorised 2026-11-04; (b) before Commerce scaffolding |
 | ~~B9~~ **AUTHORIZED (narrow scope)** | Freeze change control — **AUTHORIZED by the user 2026-11-04, strictly limited.** **Authorised scope:** aligning the **stale ADR-036 status references** with ADR-036's `Accepted` status in exactly two frozen documents — `commerce/docs/architecture/07-package-architecture.md` and `commerce/docs/architecture/resolution/architecture-freeze-assessment.md`. Historical context and rationale are preserved; no unrelated frozen architectural decision is modified; the freeze is **not** reopened; the change is traceable to this authorisation. **NOT authorised by this decision:** the `07 §4` **manifest-sketch** correction (the `workspace:*` sketch), any broader architecture change, and any other frozen content — those remain pending and require their own change control. **Executed** in the two named documents only; nothing else was touched. | Commerce policy §8; roadmap WP-D1; freeze assessment §7 "Change control after the freeze" | Commerce governance (freeze change control) — **decided** | WP-D1 | The ADR-036 reference alignment (**done**). The **manifest-sketch correction (B9(b)) remains PENDING OWNER APPROVAL** and still blocks WP-D1 completion | Authorised 2026-11-04 |
 | ~~B10~~ **CONFIRMED** | Who authorises each work package's implementation task — **CONFIRMED by the user 2026-11-04.** The responsibility model below is now the governing rule. **An Accepted ADR does not automatically authorise implementation of a work package**; each work package still requires explicit authorisation under this model. | Roadmap §8.6/§8.7 previously left this unnamed; it is now stated | **Architecture owner** — see the model below | WP-A1…D3, WP-DOC, WP-E | Every work package | Before each package starts |
@@ -246,14 +260,15 @@ authorized to become blocking** until the WP-A1/WP-A4 and WP-B formal-ratificati
 **WP-C3 status.** `COMPLETED`, verified and `RELEASED` on 2026-11-05 under the two records above. Its authoritative definition is
 ADR-035 D-03 stage 2 (`packed-surface`, design §12, rules `ARCH-PACK-001…006`). Decision **C1** is resolved inside the work package:
 `pnpm pack --pack-destination` produces the tarball and the system `tar` reads it — **no new dependency**. Stage-2 **enforcement**
-remains gated on WP-A1 and WP-A4 exact-pin migration or recorded exceptions and on WP-B formal ratification, which are incomplete; see
+remains gated on WP-A1 and WP-A4 exact-pin migration or recorded exceptions, which are incomplete (the WP-B ratification was granted on
+2026-11-05); see
 §6.1.
 
-As at this record, **WP-0, WP-C1, WP-C2 and WP-C3 are `COMPLETED`; no other implementation work package is `AUTHORIZED` or
+As at this record, **WP-0, WP-B, WP-C1, WP-C2 and WP-C3 are `COMPLETED`; no other implementation work package is `AUTHORIZED` or
 `STARTED`**: B6 **approved** the WP-A2 *release activity* (release-owner gate satisfied) without authorising its implementation; A1
 **confirmed** a *sequencing prerequisite* without authorising WP-B; B8 **authorised** *policy adoption* without authorising Commerce
-implementation; B9 **authorised** a *narrow documentation change*, which was executed. WP-B is evidence-complete and published, with
-formal completion ratification pending owner approval. WP-C4 remains unauthorized.
+implementation; B9 **authorised** a *narrow documentation change*, which was executed. WP-B is **`COMPLETED — FORMALLY RATIFIED`
+(2026-11-05)**: implementation and releases verified, its semver class confirmed as `patch` and B7 closed. WP-C4 remains unauthorized.
 
 ### C. Implementation decision (within the approved architecture, during the work package)
 
@@ -341,7 +356,7 @@ are scheduled **as part of WP-B** (roadmap §6) and are not made in this documen
 |---|---|
 | ~~B1~~, ~~B5~~, ~~B6~~ **satisfied**; **B10 outstanding** | WP-A1 → WP-A2. B1/B5/B6 are done, so **only B10** (architecture-owner authorisation) remains before WP-A1 can start. **WP-A2 is RELEASE APPROVED but implementation PENDING OWNER APPROVAL and NOT STARTED**; it cannot execute until WP-A1 is authorised and completed |
 | ~~B1~~ (whose acceptance ratifies the `@comity-dev/*` scope) **satisfied**; **B10 outstanding** | WP-A4 — independent of WP-A1/WP-A2; neither blocks it nor is blocked by it |
-| ~~B2~~ **satisfied**; WP-B **VERIFIED COMPLETE, releases PUBLISHED**; formal ratification and semver **PENDING OWNER APPROVAL**; B7 **PENDING OWNER APPROVAL** | WP-B formal closure and B7 release-train record only. **A1 (confirmed) makes WP-B completion a hard prerequisite of the first Commerce publication** |
+| ~~B2~~ **satisfied**; **WP-B `COMPLETED — FORMALLY RATIFIED` 2026-11-05**, releases PUBLISHED, semver `patch` confirmed; **B7 CLOSED 2026-11-05** | WP-B formal closure and B7 release-train record only. **A1 (confirmed) makes WP-B completion a hard prerequisite of the first Commerce publication** |
 | ~~B3~~ **satisfied**; **WP-C1 and WP-C2 COMPLETED 2026-11-05**; **WP-C3 B10 outstanding**; C2–C4 settled in WP-C1, C1 open for WP-C3 | WP-C3 (C1 only for WP-C3) |
 | ~~B4~~, ~~B8(a)~~ and the ~~B9~~ ADR-036-reference part **satisfied**; **B10 outstanding**; B9's manifest-sketch change control **outstanding** | WP-D1 |
 | **B8(b)** (repository, namespace, `repository.type` — **still open**), WP-C1/C3 or equivalent | WP-D2/WP-D3, Commerce scaffolding |
@@ -387,8 +402,8 @@ repository variable `COMITY_PACKED_SURFACE_ENFORCEMENT` is `true` and is report-
 
 Enforcement gates (unchanged, still incomplete): WP-A1 (120 Community `workspace:*` sibling references in 50 packages) and WP-A4 (7
 Development `@comity-dev/*` `workspace:*` references) would pack as exact pins and trip `ARCH-PACK-005` until migrated or excepted.
-WP-B's ESM-only implementation is verified and published, so `ARCH-PACK-006` is expected to pass; its formal completion ratification
-remains an A1 gate for the first Commerce publication. Do not enable `COMITY_PACKED_SURFACE_ENFORCEMENT` before WP-A1/A4 are migrated
+WP-B's ESM-only implementation is verified and published, so `ARCH-PACK-006` is expected to pass; its formal completion ratification was
+granted on 2026-11-05, satisfying A1's prerequisite for the first Commerce publication. Do not enable `COMITY_PACKED_SURFACE_ENFORCEMENT` before WP-A1/A4 are migrated
 or excepted.
 
 ## 7. F-02 historical provenance (consistent with roadmap §9)
@@ -445,7 +460,7 @@ the WP-C3 approvals, the implementation, the release and the enforcement gate. C
 `run.ts` / `format.ts` / CLI registration, the design §12 implementation notes, the package README, the changeset, both release
 workflows, both root `validate:packed-surface` scripts, and the Community consumer/lockfile bump. No ADR was changed, no unrelated
 package or release was touched, and no unrelated working-tree modification was staged or committed. **WP-C3 is `COMPLETED`, verified
-and `RELEASED`; stage-2 enforcement remains inactive** and is gated on WP-A1, WP-A4 and WP-B formal ratification. The WP-A1/A4 counts
+and `RELEASED`; stage-2 enforcement remains inactive** and is gated on WP-A1 and WP-A4 (WP-B was ratified on 2026-11-05). The WP-A1/A4 counts
 are a 2026-11-05 snapshot.
 
 **Updated by the WP-C2 final closure and WP-C3 handoff (2026-11-05, documentation only):** this record (header, §6.1, completion

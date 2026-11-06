@@ -88,10 +88,10 @@
       "from": "@comity/order",
       "to": "@comity/pricing",
       "layer": "core-to-core",
-      "categories": ["capability"],
-      "importKind": "type-only",
+      "categories": ["capability", "value-import"],
+      "importKind": "value",
       "lifecycle": "approved",
-      "justification": "Order items reference Price / PriceModifier.",
+      "justification": "@comity/order composes its order-level PriceRecord via the public PriceRecord type and combine (record composition, not calculation); the record type stays pricing-owned.",
       "adrReference": "ADR-008 — Dependency Register, Capability Exceptions"
     },
     {

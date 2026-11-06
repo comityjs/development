@@ -2,6 +2,23 @@
 
 **Status:** Accepted
 
+> **Amendment 1 — OD-8 formally incorporated (2026-11-06).** Status is unchanged (**Accepted**). The owner-approved
+> `order → pricing` value-import exception is now recorded in both the closed register and the machine-readable register:
+>
+> 1. **Dependency — Value.** `order → pricing` is a **Value** import, limited to the public `PriceRecord` record
+>    types (`PriceRecord`, `PriceCurrency`, `PriceModifierRecord`) and `combine`. No other edge is affected;
+>    type-only remains the default for every other dependency.
+> 2. **Register — INCORPORATED.** The machine-readable register records `"importKind": "value"` with the
+>    `"value-import"` category, and the closed register classifies `order → pricing` as **Value**.
+> 3. **Authorized scope — limited.** The surface is the public `PriceRecord` record types
+>    (`PriceRecord`, `PriceCurrency`, `PriceModifierRecord`) and `combine` only; it does
+>    **not** include `verify()`, the retained-semantics table, or an aggregate-side `from` API.
+>
+> Formal incorporation is complete. The value-import implementation was subsequently completed and released in
+> `@comity/order@0.10.0` (with `@comity/pricing@0.10.0`); the earlier pre-implementation statement that it remained
+> separately authorized, and that no manifest/dependency/source change had been made, is retained only as historical
+> context and is superseded by that release. The authorized scope remains unchanged.
+
 ## Context
 
 Comity Core Modules intentionally provide reusable capabilities.
@@ -140,7 +157,7 @@ Dependencies that fail one or more acceptance criteria and SHOULD be removed or 
 | `content → media`       | Type-only   | Content blocks/pages reference `MediaModel`.                        |
 | `content → seo`         | Type-only   | Content pages reference `SeoModel`.                                 |
 | `taxonomy → media`      | Type-only   | Taxonomy models reference `MediaModel` for category image.          |
-| `order → pricing`       | Type-only   | Order items reference `Price` / `PriceModifier` / `Money`.            |
+| `order → pricing`       | Value       | `@comity/order` composes its order-level `PriceRecord` via the public `PriceRecord` type and `combine` (record composition, not calculation); the record type stays pricing-owned.            |
 | `order → organization`  | Type-only   | Order contracts reference `ChannelId` for commercial channel scoping. |
 | `address → validation`  | Type-only   | Address validator consumes the shared `Validator` contract.         |
 | `customer → validation` | Type-only   | Customer validator consumes the shared `Validator` contract.        |
@@ -159,6 +176,60 @@ Dependencies that fail one or more acceptance criteria and SHOULD be removed or 
 | Dependency             | Import kind                                                     | Justification                                                                                                                           |
 | ---------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `auth-tokens → auth`   | Value (`AuthError`) + type                                      | Token facade error surface normalizes `AuthError` at runtime.                                                                           |
+
+### Amendment 1 — Owner-approved runtime value-import exception (OD-8)
+
+> **Authority:** architecture-owner approval, 2026-11-05 (owner decision **OD-8**), limited to the exact scope recorded below
+> and no wider. This is an amendment to ADR-008, **not** a new ADR and **not** a reopening of the exception model.
+> Core-to-Core dependencies remain forbidden by default; type-only remains the default for every registered edge; no other edge
+> is granted. The exception is **owner-approved** and **formally incorporated (2026-11-06)**: the register tables above
+> classify `order → pricing` as **Value** and the machine-readable register records `"importKind": "value"`. See
+> "Formal incorporation — completed" below.
+
+**Approved scope — exactly one edge, one direction, one API surface:**
+
+| Dependency | Approved import kind | Justification |
+| --- | --- | --- |
+| `order → pricing` | **Value**, limited to the public `PriceRecord` record types (`PriceRecord`, `PriceCurrency`, `PriceModifierRecord`) and `combine` | `@comity/order` composes its order-level `PriceRecord` from line records through `PriceRecord.combine(...)` and records the current pricing semantics identifier (ADR-014 §13–§14). This is a monetary-record composition, not a calculation, and it keeps O-7 maintained by construction instead of by a caller-supplied aggregate price. |
+
+**What is NOT granted.** No value import of the retained-semantics table; no call to `PriceRecord.verify()` from `@comity/order`;
+no access to any other `@comity/pricing` internal; no value import on any other edge; no widening of the 8-edge budget recorded
+elsewhere; changes to a manifest, dependency or source import remain limited to the separately authorized
+implementation, now released in `@comity/order@0.10.0`.
+
+Assessment against the acceptance criteria (§ Exception Acceptance Criteria):
+
+- **(1) Capability ownership** — pricing owns price composition and the historical record shape (ADR-014 §13–14); satisfied.
+- **(2) Ownership direction** — `order` is the consumer of a lower-level value module; satisfied.
+- **(3) Required contract dependency** — **evaluated and approved by the architecture owner (OD-8, 2026-11-05)**, on the scope
+  above and no wider. This criterion is satisfied by that approval, not by the proposer's own assessment.
+- **(4) No implementation coupling** — the import touches only the public `PriceRecord` surface. `@comity/order` never
+  reads the retained-semantics table (ADR-014 §14.3) and never calls `verify()`. Satisfied by construction.
+- **(5) No cycles** — `@comity/pricing` depends on `@comity/primitives` only; `pricing → order` stays forbidden (ADR-014
+  §11). Satisfied.
+- **(6) Documented** — this section. The machine-readable register
+  (`decisions/data/adr-008-core-exception-register.json`) records the incorporated edge with `"importKind": "value"`
+  and the additional `"value-import"` category; its `justification` records the `PriceRecord`/`combine` scope.
+  `schemaVersion` remains `1`, and the existing `"capability"` category is preserved. The register therefore reflects
+  the actual change; it no longer records an approved-but-not-incorporated state.
+- **(7) Type-only preferred** — **satisfied as a documented value-import justification, granted by OD-8** for this edge only.
+  The preference itself is unchanged: value imports remain disfavoured and require their own approval.
+- **(8) Contract surface isolation** — `@comity/order` does not re-expose pricing concepts it does not own; the record
+  type stays a pricing type in pricing's public API. Satisfied.
+
+**Formal incorporation — completed (2026-11-06).** The three mechanical steps are done, so the register and this ADR agree:
+
+1. The `order → pricing` row is annotated **Value** in the Capability Exceptions table — one row, not two.
+2. The machine-readable edge in `decisions/data/adr-008-core-exception-register.json` records `"importKind": "value"` (not
+   `"mixed"` — the edge is wholly value) and adds `"value-import"` to its `categories` alongside `"capability"`; `schemaVersion`
+   stays `1` (additive within an allowed enum).
+3. The incorporation is recorded in `## Migration` below, so the change from type-only to value is traceable as a decision and
+   not as drift.
+
+**Unchanged by this amendment:** the closed-register rule, the "one decision per file" rule, the type-only default, all other
+registered edges, the Forbidden Patterns section, the dependency categories and the criteria themselves. This amendment grants
+**one** value import on **one** edge; every other Core-to-Core dependency remains governed exactly as before, and no additional
+exception may be inferred from it.
 
 ### Ownership notes
 
@@ -241,6 +312,14 @@ orchestration sequence.
 ## Migration
 
 - **No action required** for the Capability Exceptions.
+- **OD-8 formally incorporated (2026-11-06) — `order → pricing` is now a value import.** The register row is
+  changed from Type-only to **Value**, and the machine-readable register records `"importKind": "value"` with the
+  `"value-import"` category, limited to the public `PriceRecord` record types (`PriceRecord`, `PriceCurrency`,
+  `PriceModifierRecord`) and `combine` (record composition, not calculation). Formal OD-8 incorporation into ADR-008 was the prerequisite for implementation; this entry records
+  that incorporation. Implementation was subsequently completed and released in `@comity/order@0.10.0`, within the
+  same limited scope. The earlier statement that implementation remained separately authorized, and that no
+  manifest/dependency/source change had been made, is historical pre-implementation guidance and is superseded by
+  that release. This entry supersedes the pre-incorporation governance note at the top of this ADR.
 - **Completed** — Search Contract Isolation (Phase 15). The Candidates for Removal `catalog → search`, `taxonomy → search`, `content → search` were removed: repository `search()` methods were relocated to the search-owned `SearchPort<TProjection>` contract in `@comity/search`, and the Application/Composition layer (e.g., `@comity/storefront`) composes `ProductRepository` + `SearchPort<ProductProjection>` where required.
 - **Completed** — Phase 4 (HTML/Storefront HTTP decoupling). The Infrastructure Contract Exceptions `html → http` and `storefront → http` were removed: `@comity/html` returns rendering-only output (`HtmlOutput`) instead of `HttpResponse`, and `@comity/storefront` resolves context from a transport-neutral `StorefrontContextInput` instead of `HttpRequest`.
 - Infrastructure Contract Exceptions remain registered in ADR-008 and are tracked as future extraction candidates. Any extraction work requires a dedicated ADR. Only `router → http` remains registered.

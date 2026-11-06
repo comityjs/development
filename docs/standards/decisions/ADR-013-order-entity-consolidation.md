@@ -6,6 +6,11 @@
 > - Migration: Phase 4
 > - Original semantic owner: Comity-wide
 > - Canonical owner: comity-development
+> - **Amended 2026-11-05 (Amendment 1)** — order persistence and the historical
+>   price representation consolidated from architecture-owner decisions **OD-6**
+>   (`PriceCurrency`), **OD-7** (atomic priced-content replacement) and **OD-9**
+>   (pricing semantics identifiers). Status is unchanged (**Accepted**); this
+>   amendment is not a new acceptance and does not authorize implementation.
 
 
 **Status:** Accepted
@@ -116,10 +121,31 @@ The entity enforces Order-owned invariants only. It does not validate coupons
 and knows no promotion rules: coupon validity and the decision to apply a
 coupon depend on external context (customer, date, campaigns, usage limits,
 segments), so validation and applicability belong to `@comity/pricing` and to
-application/domain services. The Order owns only the **applied result**,
-stored as an immutable `Price` value: `price.modifiers`, `price.subtotal`,
-`price.total`. The Order does not store modifiers separately — `Price` is the
-single owner of price composition data.
+application/domain services. The Order owns only the **applied result**.
+
+> **Amended (Amendment 1, OD-6/OD-7/OD-9).** The applied result is stored as a
+> **`PriceRecord`** — a `Price` is a transient calculation product and does not
+> cross the persistence boundary (ADR-014 §6, §14). The Order stores, per line and
+> once at aggregate level, an immutable `PriceRecord`: its `PriceCurrency`, its
+> subtotal, its ordered modifiers, its committed total, and the pricing semantics
+> identifier that produced it. `price.modifiers` remains the canonical
+> representation of the applied adjustments, but inside the record rather than
+> inside a live `Price`. The Order does not store modifiers separately from the
+> record and does not recompute them.
+
+The Order holds its monetary context as a **`PriceCurrency`** (`{ code, exponent }`),
+not as a `Currency`. `Currency` describes a *currently supported* currency under the
+present ISO table and therefore cannot represent a committed amount in a withdrawn
+code or in an exponent the table no longer reports; historical restoration must
+never be validated against the current table (ADR-014 §2, §13). Current currency
+eligibility is enforced only where a **new** amount enters a calculation.
+
+All priced content of a draft — the line collection and the order-level adjustments
+together — is replaced by a **single atomic operation**, `setPricedContent`, which
+validates the complete replacement, re-derives aggregate price coherence under
+current semantics, and applies lines, adjustments and the resulting order record
+together. On any failure the aggregate is left completely unchanged (Amendment 1,
+OD-7).
 
 Cross-aggregate concerns (pricing recomputation, coupon/promotion validation,
 stock reservation, payment authorization) are orchestrated outside the entity
@@ -189,6 +215,9 @@ by leaking their state machines into `OrderStatus`.
 
 ### OrderItem Model
 
+> **Historical proposal — superseded by ADR-032 Amendment 3.** `OrderItem` is not the released contract;
+> the generic released line is `OrderLine` with `OrderLineSubject`. The rationale below is retained for history.
+
 Decision: `OrderItem` is **NOT an Entity**. It is an **embedded value
 structure** of the Order aggregate.
 
@@ -206,6 +235,9 @@ This matches how `AddressContact`/`CustomerContact` are modeled inside
 in `ProductProjection`.
 
 ### OrderProductSnapshot — Product Snapshot Boundary
+
+> **Historical proposal — superseded by ADR-032 Amendment 3.** The released generic contract uses
+> `OrderLineSubject` and does not export `OrderProductSnapshot`. The rationale below is retained for history.
 
 Decision: the product saved in the order is an **owned, immutable snapshot**
 (`OrderProductSnapshot`). It is NOT `ProductProjection` from
@@ -262,15 +294,30 @@ from `@comity/pricing` into the order, and the order stores the applied
 result without requiring the pricing engine, inventory, or tax services after
 creation. `@comity/pricing` is the single owner of price composition data:
 `Price` carries `subtotal`, `modifiers`, and `total` together, and the order
-stores the full immutable `Price` value (line item and order level). Order
+stores the full immutable `Price` value (line item and order level).
+
+> **Amended (Amendment 1, OD-6/OD-9).** The sentence above is **superseded**: the order stores an
+> immutable **`PriceRecord`** (currency + subtotal + ordered modifiers + committed total + pricing
+> semantics identifier) at line and aggregate level, because a `Price` cannot be persisted or
+> restored with its historical total (ADR-014 §6, §14). Pricing composition data remains owned by
+> `@comity/pricing`, and the order still duplicates nothing — but the stored form is the record,
+> and `PriceSnapshot` is an in-memory/rendering capture, not a persistence form.
+
+> **Superseded by ADR-032 Amendment 3 (released in `@comity/order@0.10.0`).** The product-oriented
+> `OrderProductSnapshot`/`OrderItem` line model below is historical. The released generic contract uses
+> `OrderLine` with `OrderLineSubject`. The persistence representation is `PriceRecord`; `PriceSnapshot` is an
+> in-memory/rendering capture and is **not** a persistence form (ADR-014 §7). The historical rationale is
+> retained below.
+
+Order
 contracts do NOT duplicate pricing concepts — there is no separate
 `modifiers` storage; modifiers are accessed exclusively through
 `price.modifiers`. The line item is conceptually `{ product:
 OrderProductSnapshot; price: Price; quantity }`; `quantity` remains the
 existing `number` field until a dedicated decision introduces a `Quantity`
-value object. `PriceSnapshot` (`Price` + `capturedAt`, ADR-014 §7) is the
-persistence/rendering form applied at the boundary when a capture instant is
-needed.
+value object. `PriceSnapshot` (`Price` + `capturedAt`, ADR-014 §7) is an
+in-memory/rendering capture only; it is **not** a persistence form. The
+persistence representation is `PriceRecord`.
 
 Guiding principle (see `domain-modeling.md` §11):
 
@@ -282,7 +329,8 @@ Rationale: the order must remain stable and renderable for historical order
 rendering, customer support, invoice generation, and returns workflows
 regardless of later catalog edits, deletions, or price changes.
 
-The dependency register (ADR-008) lists `order → pricing` (type-only);
+The dependency register (ADR-008) lists `order → pricing` as **Value**
+(`importKind: "value"`, category `value-import`; OD-8 formally incorporated);
 `order → catalog` is **not** registered and MUST NOT be added.
 
 ### Historical Snapshot Boundary — Customer, Address, Payment
@@ -371,6 +419,28 @@ Rules:
 - `OrderSearchCriteria` / `OrderSearchResult` are defined inside the module
   (pattern `CustomerSearchCriteria`) and do not reuse `@comity/search` types
 
+**Monetary persistence and restoration rules (Amendment 1, OD-6/OD-9).** The
+repository contract is unchanged; what it must carry is now explicit:
+
+- **`PriceRecord` is the persisted monetary representation** of every line and of
+  the aggregate. A `Price` MUST NOT be persisted, and no adapter may reconstruct a
+  `Price` from stored data (ADR-014 §6, §14).
+- **`PriceCurrency` is persisted verbatim**: its `code` and, mandatorily, its
+  `exponent`. The exponent MUST NOT be re-derived from the current ISO table on
+  read.
+- **Restoration is structural only.** Loading an order MUST NOT validate its
+  currency against the current table, MUST NOT recompute any monetary amount, and
+  MUST NOT repair a stored total. Historical monetary data is a fact, not a
+  derivation.
+- **Persisted amounts are integer minor units.** An adapter MUST preserve `bigint`
+  precision losslessly (for example as a decimal string); no floating-point
+  round-trip is conformant.
+- **The semantics identifier is persisted with each record** and is never inferred
+  from the installed package version (ADR-014 §14.1).
+- **Aggregate price coherence is asserted, not derived, on read.** For a committed
+  order the stored order-level record is authoritative; recomputation is never a
+  substitute for it.
+
 ### Error Semantics
 
 Aligned with ADR-012 §4 and `errors.md`. One error class (`OrderError`), one
@@ -382,11 +452,17 @@ Forbidden:
 - `unknown` — generic fallback
 - `validation_failed` — replaced by the precise domain reason
 
-`OrderError` contains **only domain conditions** of the Order aggregate:
+`OrderError` historically contained these domain conditions; the list is not exhaustive after Phase A:
 
 - `invalid_quantity`
 - `invalid_status_transition`
 - `invalid_item`
+
+> **Historical inventory — not exhaustive after Phase A.** The released `@comity/order@0.10.0` error union has
+> **ten** reasons: the six original reasons (`invalid_quantity`, `invalid_item`, `invalid_status_transition`,
+> `shipping_destination_immutable`, `ambiguous_shipping_destination`, `duplicate_item_id`) plus
+> `currency_mismatch`, `price_incoherent`, `commitment_immutable`, and `payment_fact_conflict`. `invalid_buyer`
+> was withdrawn by ADR-032 Amendment 3.
 
 Explicitly NOT included:
 
@@ -485,6 +561,23 @@ redefine them.
 - `OrderCommands` consumers (none in-repo today) must move to entity methods
   - services
 
+**Amendment 1 (OD-6/OD-7/OD-9) — consequences:**
+
+- a committed order keeps its exact monetary facts across a currency withdrawal, an
+  exponent change, or a future change of pricing arithmetic; historical truth no
+  longer depends on the live currency table or the installed calculation engine
+- priced content is replaced atomically, so a failed replacement cannot leave an
+  order partially repriced
+- **cost:** breaking change to `@comity/order` beyond Phase A — `OrderData.currency`
+  becomes `PriceCurrency`, and the line/aggregate price fields become `PriceRecord`
+- **cost:** the aggregate composes records through `@comity/pricing` at runtime via a
+  narrow ADR-008 value-import exception. **Owner-approved (OD-8)**, recorded as ADR-008
+  "Amendment 1" and **formally incorporated**; the machine-readable register records **Value** /
+  `value-import`, and the value import is implemented and released in `@comity/order@0.10.0`.
+- **cost:** adapters carry a new obligation — persist `PriceRecord` with its
+  exponent and semantics identifier, preserve `bigint` precision, and never
+  recompute or repair a stored amount on read
+
 ## Migration Plan
 
 1. This ADR (status Proposed → Accepted after review)
@@ -504,10 +597,18 @@ redefine them.
 - **OrderNumber** — introduce with the checkout feature (recommended), not
   before
 - **Money/Currency** — ownership confirmed in `@comity/pricing`; introduced
-  there (ADR-014) so Order consumes them. The order stores the full immutable
-  `Price` value; `PriceSnapshot` (`price` + `capturedAt`, ADR-014 §7) is the
-  persistence/rendering form applied at the boundary when a capture instant is
-  needed.
+  there (ADR-014) so Order consumes them. **Superseded by Amendment 1:** the order
+  stores an immutable `PriceRecord`, not a `Price`; `PriceSnapshot` (`Price` +
+  `capturedAt`, ADR-014 §7) is an **in-memory/rendering** capture and is *not* a
+  persistence form. The earlier characterization of `PriceSnapshot` as a
+  "persistence form" is withdrawn — `Price` does not cross the
+  persistence boundary (ADR-014 §6, §14).
+- **Historical price representation** — closed by Amendment 1 (OD-6/OD-9):
+  `PriceRecord` + `PriceCurrency` in `@comity/pricing`, with a pricing semantics
+  identifier per record. Order-side persistence and restoration rules are stated
+  under "Repository Contract". `historicalInputs()` naming (OD-10) and the policy
+  for drafts whose currency has been withdrawn (OD-11) are **closed in ADR-014**
+  (§14.4 and §13.1; recorded as CLOSED in its Open Questions).
 - **payment lifecycle** — `attachPayment` appends historical payment facts;
   multiple payment facts are allowed. A `paid` signal (if ever needed inside
   the aggregate) is a dedicated decision with `@comity/payment`, not a leak
@@ -526,7 +627,16 @@ redefine them.
 - `docs/standards/decisions/ADR-002-repository-vs-domain-command.md` —
   repository as persistence port
 - ADR-008 — Explicit Core Module Composition Exceptions (Community-specific register instance in comity-community)
-  — `order → pricing` register
+  — `order → pricing` register. **"Amendment 1"** records the **owner-approved (OD-8)** narrow value-import
+  exception; it is **formally incorporated** (2026-11-06): the register classifies the edge as **Value** and the
+  machine-readable register records `"importKind": "value"` with the `"value-import"` category. The import is
+  implemented in `@comity/order@0.10.0`.
+- `docs/standards/decisions/ADR-014-pricing-domain-model.md` — `Money`/`Currency`/
+  `Price` ownership, and `PriceCurrency`/`PriceRecord`/pricing semantics identifiers
+  (§13, §14) on which Amendment 1 depends
+- `docs/standards/decisions/ADR-032-order-aggregate-commerce-extension.md` — the
+  Phase A contract; `setPricedContent` (OD-7) and the `PriceRecord` migration are
+  recorded there as Amendments
 - `packages/address`, `packages/customer`, `packages/identity` — canonical
   entity implementations
 - `packages/catalog` — `ProductProjection` (contrast case)

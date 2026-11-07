@@ -1,0 +1,235 @@
+{
+  "modules": [
+    {
+      "source": "packages/a/src/i.ts",
+      "dependencies": [
+        {
+          "module": "../../b/src/i",
+          "moduleSystem": "es6",
+          "dynamic": false,
+          "exoticallyRequired": false,
+          "dependencyTypes": [
+            "local",
+            "import"
+          ],
+          "resolved": "packages/b/src/i.ts",
+          "coreModule": false,
+          "followable": true,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": false,
+          "circular": false,
+          "valid": false,
+          "rules": [
+            {
+              "severity": "error",
+              "name": "r-error"
+            }
+          ]
+        },
+        {
+          "module": "../../c/src/i",
+          "moduleSystem": "es6",
+          "dynamic": false,
+          "exoticallyRequired": false,
+          "dependencyTypes": [
+            "local",
+            "import"
+          ],
+          "resolved": "packages/c/src/i.ts",
+          "coreModule": false,
+          "followable": true,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": false,
+          "circular": false,
+          "valid": false,
+          "rules": [
+            {
+              "severity": "warn",
+              "name": "r-warn"
+            }
+          ]
+        },
+        {
+          "module": "../../d/src/i",
+          "moduleSystem": "es6",
+          "dynamic": false,
+          "exoticallyRequired": false,
+          "dependencyTypes": [
+            "local",
+            "import"
+          ],
+          "resolved": "packages/d/src/i.ts",
+          "coreModule": false,
+          "followable": true,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": false,
+          "circular": false,
+          "valid": false,
+          "rules": [
+            {
+              "severity": "info",
+              "name": "r-info"
+            }
+          ]
+        },
+        {
+          "module": "../../e/src/i",
+          "moduleSystem": "es6",
+          "dynamic": false,
+          "exoticallyRequired": false,
+          "dependencyTypes": [
+            "local",
+            "import"
+          ],
+          "resolved": "packages/e/src/i.ts",
+          "coreModule": false,
+          "followable": true,
+          "couldNotResolve": false,
+          "matchesDoNotFollow": false,
+          "circular": false,
+          "valid": true
+        }
+      ],
+      "dependents": [],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "packages/b/src/i.ts",
+      "dependencies": [],
+      "dependents": [
+        "packages/a/src/i.ts"
+      ],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "packages/c/src/i.ts",
+      "dependencies": [],
+      "dependents": [
+        "packages/a/src/i.ts"
+      ],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "packages/d/src/i.ts",
+      "dependencies": [],
+      "dependents": [
+        "packages/a/src/i.ts"
+      ],
+      "orphan": false,
+      "valid": true
+    },
+    {
+      "source": "packages/e/src/i.ts",
+      "dependencies": [],
+      "dependents": [
+        "packages/a/src/i.ts"
+      ],
+      "orphan": false,
+      "valid": true
+    }
+  ],
+  "summary": {
+    "violations": [
+      {
+        "type": "dependency",
+        "from": "packages/a/src/i.ts",
+        "to": "packages/b/src/i.ts",
+        "rule": {
+          "severity": "error",
+          "name": "r-error"
+        }
+      },
+      {
+        "type": "dependency",
+        "from": "packages/a/src/i.ts",
+        "to": "packages/c/src/i.ts",
+        "rule": {
+          "severity": "warn",
+          "name": "r-warn"
+        }
+      },
+      {
+        "type": "dependency",
+        "from": "packages/a/src/i.ts",
+        "to": "packages/d/src/i.ts",
+        "rule": {
+          "severity": "info",
+          "name": "r-info"
+        }
+      }
+    ],
+    "error": 1,
+    "warn": 1,
+    "info": 1,
+    "ignore": 0,
+    "totalCruised": 5,
+    "totalDependenciesCruised": 4,
+    "optionsUsed": {
+      "baseDir": "/fixture",
+      "combinedDependencies": false,
+      "detectJSDocImports": false,
+      "doNotFollow": {
+        "path": "node_modules"
+      },
+      "exoticRequireStrings": [],
+      "externalModuleResolutionStrategy": "node_modules",
+      "metrics": false,
+      "moduleSystems": [
+        "es6",
+        "cjs",
+        "tsd",
+        "amd"
+      ],
+      "outputTo": "-",
+      "outputType": "json",
+      "preserveSymlinks": false,
+      "rulesFile": "/fixture/cfg.json",
+      "skipAnalysisNotInRules": false,
+      "tsPreCompilationDeps": false,
+      "args": "packages/a packages/b packages/c packages/d packages/e"
+    },
+    "ruleSetUsed": {
+      "forbidden": [
+        {
+          "name": "r-error",
+          "severity": "error",
+          "comment": "error rule",
+          "from": {
+            "path": "^packages/a/"
+          },
+          "to": {
+            "path": "^packages/b/"
+          },
+          "scope": "module"
+        },
+        {
+          "name": "r-warn",
+          "severity": "warn",
+          "comment": "warn rule",
+          "from": {
+            "path": "^packages/a/"
+          },
+          "to": {
+            "path": "^packages/c/"
+          },
+          "scope": "module"
+        },
+        {
+          "name": "r-info",
+          "severity": "info",
+          "comment": "info rule",
+          "from": {
+            "path": "^packages/a/"
+          },
+          "to": {
+            "path": "^packages/d/"
+          },
+          "scope": "module"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "modules": [
+    {
+      "source": "packages/b/src/i.ts",
+      "dependencies": [],
+      "dependents": [],
+      "orphan": true,
+      "valid": true
+    },
+    {
+      "source": "packages/c/src/i.ts",
+      "dependencies": [],
+      "dependents": [],
+      "orphan": true,
+      "valid": true
+    }
+  ],
+  "summary": {
+    "violations": [],
+    "error": 0,
+    "warn": 0,
+    "info": 0,
+    "ignore": 0,
+    "totalCruised": 2,
+    "totalDependenciesCruised": 0,
+    "optionsUsed": {
+      "baseDir": "/fixture",
+      "combinedDependencies": false,
+      "detectJSDocImports": false,
+      "doNotFollow": {
+        "path": "node_modules"
+      },
+      "exoticRequireStrings": [],
+      "externalModuleResolutionStrategy": "node_modules",
+      "metrics": false,
+      "moduleSystems": [
+        "es6",
+        "cjs",
+        "tsd",
+        "amd"
+      ],
+      "outputTo": "-",
+      "outputType": "json",
+      "preserveSymlinks": false,
+      "rulesFile": "/fixture/cfg.json",
+      "skipAnalysisNotInRules": false,
+      "tsPreCompilationDeps": false,
+      "args": "packages/b packages/c"
+    },
+    "ruleSetUsed": {
+      "forbidden": [
+        {
+          "name": "r-error",
+          "severity": "error",
+          "comment": "error rule",
+          "from": {
+            "path": "^packages/a/"
+          },
+          "to": {
+            "path": "^packages/b/"
+          },
+          "scope": "module"
+        },
+        {
+          "name": "r-warn",
+          "severity": "warn",
+          "comment": "warn rule",
+          "from": {
+            "path": "^packages/a/"
+          },
+          "to": {
+            "path": "^packages/c/"
+          },
+          "scope": "module"
+        },
+        {
+          "name": "r-info",
+          "severity": "info",
+          "comment": "info rule",
+          "from": {
+            "path": "^packages/a/"
+          },
+          "to": {
+            "path": "^packages/d/"
+          },
+          "scope": "module"
+        }
+      ]
+    }
+  }
+}

@@ -30,7 +30,7 @@ export const LAYER_PROFILES = Object.freeze({
   },
   core: {
     comment:
-      "Core Modules MAY depend on primitives, kernel, and other Core Modules explicitly permitted via ADR-008.",
+      "Core Modules MAY depend only on primitives, kernel, composition (ADR-025) and other Core Modules. This rule does not check Core-to-Core edges; the ADR-008 closed register is not enforced by dependency-cruiser.",
   },
   "technology-adapter": {
     comment:

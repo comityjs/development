@@ -66,16 +66,33 @@ The dependency graph is built from the `dependencies` field of each package's `p
 
 - `primitives` → (no internal deps)
 - `kernel` → `primitives`
-- `composition` → `kernel`, `primitives`
-- Core Modules → `primitives`, `kernel`
-- Technology Adapters → the ONE Core Module they implement + `primitives` (+ composition infrastructure, per `layering-policy.md §2.3`)
+- `composition` → `kernel`, `primitives` (and no Core Module: ADR-025 hard invariant)
+- Core Modules → `primitives`, `kernel`, `composition` (ADR-025 §5)
+- Technology Adapters → the ONE Core Module they implement + `primitives`, `kernel`, `composition` (+ composition infrastructure, per `layering-policy.md §2.3`)
 - Integration Adapters → the Core Modules whose contracts they implement + the Technology Adapters that provide their technology (ADR-007)
 - Applications → everything below
+
+`@comity/composition` is its own layer between `kernel` and Core Modules (ADR-025 §5, ADR-026), even though §3 groups it with the Kernel / Primitives category.
+
+#### How the checks relate
+
+- **`@comity-dev/no-layer-violation`** (ESLint) checks every `import` of a `@comity/*` package against the table above. The consumer supplies
+  the layer of each package (ADR-026); the rule has no option that exempts a layer. For a source package it applies the profile of that
+  package's own layer, so composition-layer sources are checked (composition may import only `kernel` and `primitives`). Core Module sources
+  may import `composition`; `kernel` and `primitives` sources may not. A Technology Adapter may import `composition` and the Core Module it
+  implements. A target absent from the classification, and a source layer without a profile (for example `dev-tooling`), are outside its scope.
+  It does not evaluate the ADR-008 register.
+- **`@comity-dev/dependency-rules`** generates the equivalent dependency-cruiser rules. Both implement this table and are tested against each other
+  (`packages/validate/src/__tests__/layer-policy-agreement.test.ts`). The ESLint rule is deliberately stricter in three places: sibling packages
+  inside the `primitives`, `kernel` or `composition` layer, a Technology Adapter importing a Core Module other than the one it implements
+  (only the rule knows the `implements` metadata, ADR-007), and an Integration Adapter importing `composition`, on which this document is silent.
 
 ### 4.2 Forbidden Edges
 
 - contracts must never depend on adapters
 - primitives must never depend on any other internal package
+- `kernel` and `primitives` must never depend on `composition` (ADR-025 §5)
+- `composition` must never depend on a Core Module (ADR-025 hard invariant)
 - no cross-adapter dependencies
 - rendering modules must never depend on HTTP runtime implementations or transport behavior
 - reverse dependencies (lower layer depending on higher layer)

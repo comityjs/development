@@ -60,6 +60,18 @@ The Kernel:
 
 The Kernel is foundational and intentionally minimal.
 
+### Composition (`@comity/composition`)
+
+ADR-025 §5 and ADR-026 place `@comity/composition` as its own layer between the Kernel and the Core Modules. Dependencies point
+downward only:
+
+- Composition MAY depend on `@comity/kernel` and `@comity/primitives`, and on nothing else. It MUST NOT depend on any Core Module
+  (ADR-025, composition hard invariant).
+- Core Modules and Technology Adapters MAY depend on `@comity/composition` (for example its `./setup` entry point).
+- `@comity/kernel` and `@comity/primitives` MUST NOT depend on `@comity/composition`.
+
+The five conceptual layers in §1 do not name composition separately; ADR-025 and ADR-026 are authoritative for it.
+
 ---
 
 ## 2.2 Core Modules (`@comity/*`)
@@ -76,7 +88,7 @@ Examples:
 
 Core Modules:
 
-- MAY depend on Kernel
+- MAY depend on Kernel and on `@comity/composition` (ADR-025 §5)
 - MUST NOT depend on other Core Modules unless explicitly allowed
 - MUST NOT depend on specific frameworks
 - MUST remain implementation-agnostic
@@ -111,6 +123,7 @@ Technology Adapters:
 - implement/bind exactly **one** Core Module
 - represent an interchangeable technology
 - MAY depend on the Core Module they implement
+- MAY depend on `@comity/composition` (ADR-025 §5)
 - MAY depend on third-party libraries
 - MUST NOT introduce business logic
 - MUST normalize external errors into module errors

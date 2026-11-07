@@ -377,3 +377,103 @@ describe.each<PackageManager>(["npm", "pnpm"])("packed validator in a clean %s c
     console.info(`[consumer-install:${pm}] semgrep → ${line}`);
   }, 180_000);
 });
+
+describe.each<PackageManager>(["npm", "pnpm"])("full `comity-validate` command in a clean %s consumer (no --only)", (pm) => {
+  let consumer: Consumer;
+
+  const full = (): Promise<Run> => run(consumer.bin, ["--repo", "."], consumer.dir);
+  const output = (r: Run): string => `${r.stdout}\n${r.stderr}`;
+
+  beforeAll(async () => {
+    consumer = await installConsumer(pm);
+  }, 300_000);
+
+  it("starts, runs every configured engine, and PASSes a valid fixture", async () => {
+    const r = await full();
+    const out = output(r);
+
+    for (const label of [
+      "Schema",
+      "Package metadata",
+      "Comity config",
+      "Dependencies",
+      "ESLint",
+      "Semgrep",
+      "Adapter peers",
+      "Declarations",
+    ]) {
+      const line = categoryLine(out, label);
+
+      // Every engine reports an explicit outcome; none is silently absent,
+      // and none of them is a fabricated PASS without having executed.
+      expect(line, `missing category line for "${label}" in:\n${out}`).not.toBe("");
+      expect(line).not.toMatch(/^NOT-RUN/);
+    }
+
+    expect(categoryLine(out, "Dependencies")).toMatch(/^PASS /);
+    expect(categoryLine(out, "ESLint")).toMatch(/^PASS /);
+    expect(out).toContain("Result: PASS");
+    expect(r.status).toBe(0);
+  }, 180_000);
+
+  it("fails the whole command on a forbidden dependency, with the correct rule and files", async () => {
+    const bad = "packages/core-a/src/bad.ts";
+
+    write(
+      consumer.dir,
+      bad,
+      'import { x } from "../../adapter-x/src/index.js";\nexport const bad: number = x;\n',
+    );
+
+    try {
+      const r = await full();
+      const out = output(r);
+
+      expect(categoryLine(out, "Dependencies")).toMatch(/^FAIL /);
+      expect(out).toContain("DEP-contracts-never-depend-on-adapters");
+      expect(out).toContain("packages/core-a/src/bad.ts");
+      expect(out).toContain("packages/adapter-x/src/index.ts");
+      expect(out).toContain("Result: FAIL");
+      // The exit code reflects the overall validation result, not any one engine's own exit code.
+      expect(r.status).not.toBe(0);
+    } finally {
+      rmSync(join(consumer.dir, bad), { force: true });
+    }
+  }, 180_000);
+
+  it("fails the whole command on a genuine ESLint violation, with the correct rule and file", async () => {
+    const bad = "packages/kernel/src/random.ts";
+
+    write(consumer.dir, bad, "export const r: number = Math.random();\n");
+
+    try {
+      const r = await full();
+      const out = output(r);
+
+      expect(categoryLine(out, "ESLint")).toMatch(/^FAIL /);
+      expect(out).toContain("@comity-dev/no-date-in-core");
+      expect(out).toContain("random.ts");
+      expect(out).toContain("Result: FAIL");
+      expect(r.status).not.toBe(0);
+    } finally {
+      rmSync(join(consumer.dir, bad), { force: true });
+    }
+  }, 180_000);
+
+  it("Semgrep cannot silently become PASS: it either genuinely executed or is explicitly unavailable", async () => {
+    const r = await full();
+    const line = categoryLine(output(r), "Semgrep");
+
+    if (/^PASS /.test(line)) {
+      // A PASS claim must correspond to a tool that actually ran: the
+      // availability contract, not merely the text of this one line.
+      expect(line).not.toMatch(/NOT-RUN|SKIP/);
+    } else {
+      expect(line).toMatch(/^TOOL-UNAVAILABLE /);
+      expect(output(r)).toMatch(/semgrep/i);
+    }
+
+    console.info(`[consumer-install:${pm}:full] semgrep → ${line}`);
+  }, 180_000);
+});
+

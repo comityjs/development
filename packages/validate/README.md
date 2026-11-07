@@ -29,6 +29,18 @@ The engines wrap shared Development-owned tooling:
 
 Engines report one of `PASS` / `FAIL` / `NOT-RUN` / `TOOL-UNAVAILABLE` / `CONFIGURATION-ERROR` / `EXECUTION-ERROR` / `NOT-APPLICABLE`. `PASS` is only reported when the engine actually executed.
 
+### Dependency engine (`depcruise`)
+
+The engine generates architecture rules with `@comity-dev/dependency-rules`, runs `dependency-cruiser --output-type json` from the repository root, and validates the result before trusting it.
+
+- **Result contract.** dependency-cruiser's JSON result is `{ modules, summary }`. Violations are in `summary.violations`; each entry has `from` and `to` (module path strings) and `rule: { name, severity }`. Per-severity totals are `summary.error|warn|info|ignore`, and `summary.ruleSetUsed.forbidden` lists the rules applied. The same shape is declared in dependency-cruiser v9 through v17. Supported range: `^16.10.4`; tests run against the lockfile-resolved version (16.10.4) with captured real output in `src/engines/__tests__/__fixtures__/`.
+- **Exit code is not a verdict.** The JSON reporter always exits `0`, even when error violations exist. The verdict comes from the validated violation entries.
+- **Type-only imports** are included (the generated configuration enables `tsPreCompilationDeps`), so a forbidden `import type` fails exactly like a forbidden runtime import.
+- **Severities.** `error` violations fail validation. `warn` and `info` violations are reported as warnings and do not fail it (the same policy as the ESLint engine). Findings are counted from the entries, never from the summary counters as well.
+- **Fail closed.** Output that is empty, not JSON, not the schema above, internally inconsistent (counters that disagree with the entries), a non-zero exit that the result does not explain, a crash, a start-up failure, or a kill by signal is reported as `EXECUTION-ERROR` (rule `DEP-CRASH`), never `PASS`.
+- **Rules were applied.** The engine fails with `EXECUTION-ERROR` if dependency-cruiser did not apply the number of rules that were generated, or if no cruised module is governed by any generated rule. An individual rule that matches no module is not an error.
+- **No layered packages.** A repository in which no package declares a `comity.layer` reports `NOT-APPLICABLE` instead of `PASS`.
+
 ## Ownership
 
 Owned by `comity-development`. Consumed by Comity repositories via the `comity-validate` CLI.

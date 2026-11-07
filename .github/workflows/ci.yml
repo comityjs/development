@@ -47,5 +47,10 @@ jobs:
       - name: Type check
         run: pnpm type-check
 
+      # Runs after `Build`: validate's tests resolve sibling workspace
+      # packages (dependency-rules, schemas, ...) through their built `dist/`.
+      - name: Test
+        run: pnpm test
+
       - name: Self validate
         run: pnpm self-validate

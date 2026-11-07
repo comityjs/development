@@ -46,7 +46,7 @@ recorded.
 | L5 | core MUST NOT depend on adapters | layering-policy.md §2.3 | dependency-cruiser (`contracts-never-depend-on-adapters`) | Development | SHARED | same |
 | L6 | adapter MUST NOT depend on adapter (except integration→technology) | layering-policy.md §2.3 / ADR-007 | dependency-cruiser (`no-cross-adapter-deps`) | Development | SHARED | same |
 | L7 | primitives/kernel/composition MUST NOT depend on core | layering-policy.md §2.1 | dependency-cruiser (`kernel-no-core-deps`) | Development | SHARED | same |
-| L8 | ADR-008 explicit Core-to-Core edges are permitted | ADR-008 / ADR-009 | dependency-cruiser (`adr-008-edge-*`) + JSON Schema (`adr008RegisterSchema`) | Development | SHARED | `packages/dependency-rules/src/build-config.ts`, `packages/schemas/src/schemas/adr-008-register.ts` |
+| L8 | ADR-008 explicit Core-to-Core edges are permitted | ADR-008 / ADR-009 | dependency-cruiser (`adr-008-edge-*`) + JSON Schema (`adr008RegisterSchema`) | Development | SHARED | `packages/dependency-rules/src/build-config.ts`, `packages/schemas/src/schemas/adr-008-register.ts` (derived from `docs/standards/decisions/data/`) |
 | L9 | rendering core MUST NOT depend on HTTP/rendering runtime | layering-policy.md §8 | ESLint (`no-render-core-http-runtime`) | Development | SHARED | `packages/eslint-plugin/src/rules/no-render-core-http-runtime.ts` |
 | L10 | one adapter implements one Core Module (scalar) | layering-policy.md §5 / ADR-026 | JSON Schema (`comity.implements` typed as string) + adapter-peers validator | Development | SHARED | `packages/schemas/src/schemas/package-metadata.ts`, `packages/validate/src/engines/adapter-peers.ts` |
 

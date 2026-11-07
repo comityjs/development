@@ -1,75 +1,47 @@
 import type { Ajv, ErrorObject } from "ajv";
 
-import { createAjvInstance } from "../ajv-instance.js";
-import { PACKAGE_NAME_PATTERN } from "../constants.js";
+import { createAjv2020Instance } from "../ajv-instance.js";
+import {
+  adr008CanonicalRegister,
+  adr008RegisterSchemaDocument,
+} from "./adr-008-canonical.generated.js";
 
 /**
  * Canonical schema for the ADR-008 Core Exception Register.
  *
+ * Derived at build time from the canonical JSON Schema
+ * `docs/standards/decisions/data/adr-008-core-exception-register.schema.json`
+ * (ADR-009 §3, §5). It is a JSON Schema 2020-12 document, so it must be
+ * compiled with {@link createAjv2020Instance}.
+ *
  * @see ADR-008 — Explicit Core Module Composition Exceptions
  * @see ADR-009 — Machine-Readable Core Exception Register
- *
- * Each repository owns its own register instance; the schema is shared
- * Development tooling. The register enumerates Core-to-Core dependency
- * edges that are explicitly permitted despite the default prohibition.
  */
-export const adr008RegisterSchema = {
-  $id: "https://comityjs.dev/schemas/adr-008-register.v1.json",
-  type: "object",
-  required: ["version", "edges"],
-  additionalProperties: false,
-  properties: {
-    version: {
-      type: "string",
-      const: "1",
-      description: "Schema version of the register document.",
-    },
-    edges: {
-      type: "array",
-      uniqueItems: true,
-      items: {
-        type: "object",
-        required: ["from", "to", "adr", "rationale"],
-        additionalProperties: false,
-        properties: {
-          from: {
-            type: "string",
-            pattern: PACKAGE_NAME_PATTERN,
-            description: "Source Core Module package name.",
-          },
-          to: {
-            type: "string",
-            pattern: PACKAGE_NAME_PATTERN,
-            description: "Target Core Module package name.",
-          },
-          adr: {
-            type: "string",
-            pattern: "^ADR-[0-9]{3,4}.*$",
-            description: "ADR reference approving this exception.",
-          },
-          rationale: {
-            type: "string",
-            minLength: 1,
-            description: "Why this Core-to-Core edge is permitted.",
-          },
-        },
-      },
-    },
-  },
-};
+export const adr008RegisterSchema: Record<string, unknown> =
+  adr008RegisterSchemaDocument;
 
 /**
- * Validates a parsed ADR-008 register document.
+ * Canonical ADR-008 register, derived at build time from
+ * `docs/standards/decisions/data/adr-008-core-exception-register.json`.
+ * ADR-008 (Markdown) remains the architectural authority.
+ */
+export const adr008CoreExceptionRegister: Adr008Register =
+  adr008CanonicalRegister;
+
+/**
+ * Validates a parsed ADR-008 register document against the canonical schema.
  *
  * @param document — parsed ADR-008 register
- * @param ajv — optional pre-built Ajv instance
+ * @param ajv — optional pre-built Ajv instance; it MUST support JSON Schema
+ *   2020-12 (use {@link createAjv2020Instance})
  * @returns validation result
  */
 export function validateAdr008Register(
   document: unknown,
-  ajv: Ajv = createAjvInstance(),
+  ajv: Ajv = createAjv2020Instance(),
 ): { valid: boolean; errors: ErrorObject[] } {
-  const validate = ajv.compile(adr008RegisterSchema);
+  const id = adr008RegisterSchema["$id"] as string;
+  const validate = ajv.getSchema(id) ?? ajv.compile(adr008RegisterSchema);
   const valid = validate(document);
   return {
     valid: Boolean(valid),
@@ -77,16 +49,22 @@ export function validateAdr008Register(
   };
 }
 
+export interface Adr008RegisterEdge {
+  from: string;
+  to: string;
+  layer: string;
+  categories: string[];
+  importKind: string;
+  lifecycle: string;
+  justification: string;
+  adrReference: string;
+  removalCandidate?: { criteria: string; action: string };
+}
+
 export interface Adr008Register {
-  version: "1";
-  edges: Array<{
-    from: string;
-    to: string;
-    layer: string;
-    categories: string[];
-    importKind: string;
-    lifecycle: string;
-    justification: string;
-    adrReference: string;
-  }>;
+  $schema: string;
+  schemaVersion: number;
+  authority: string;
+  source: string;
+  edges: Adr008RegisterEdge[];
 }

@@ -19,6 +19,11 @@
 > separately authorized, and that no manifest/dependency/source change had been made, is retained only as historical
 > context and is superseded by that release. The authorized scope remains unchanged.
 
+> **Amendment 2 — Fulfillment capability edges (2026-11-07).** Status is unchanged (**Accepted**). Two **type-only**
+> Capability Exceptions are registered for the optional Commerce capability `@comity/fulfillment`:
+> `fulfillment → order` and `fulfillment → organization`. The register grows from 17 to **19** edges. No other edge,
+> classification or import kind changes. See "Amendment 2" below.
+
 ## Context
 
 Comity Core Modules intentionally provide reusable capabilities.
@@ -159,6 +164,8 @@ Dependencies that fail one or more acceptance criteria and SHOULD be removed or 
 | `taxonomy → media`      | Type-only   | Taxonomy models reference `MediaModel` for category image.          |
 | `order → pricing`       | Value       | `@comity/order` composes its order-level `PriceRecord` via the public `PriceRecord` type and `combine` (record composition, not calculation); the record type stays pricing-owned.            |
 | `order → organization`  | Type-only   | Order contracts reference `ChannelId` for commercial channel scoping. |
+| `fulfillment → order`   | Type-only   | Fulfillment references the committed order by `OrderId` and reuses the `OrderAddressSnapshot` contract for shipping recipients; it never holds an `Order` and imports no value from `@comity/order`. |
+| `fulfillment → organization` | Type-only | Fulfillment repository contracts require `TenantId` for multi-tenant isolation, as order and customer repositories do. |
 | `address → validation`  | Type-only   | Address validator consumes the shared `Validator` contract.         |
 | `customer → validation` | Type-only   | Customer validator consumes the shared `Validator` contract.        |
 | `customer → organization` | Type-only | Customer repository requires `TenantId` for multi-tenant isolation. |
@@ -230,6 +237,39 @@ Assessment against the acceptance criteria (§ Exception Acceptance Criteria):
 registered edges, the Forbidden Patterns section, the dependency categories and the criteria themselves. This amendment grants
 **one** value import on **one** edge; every other Core-to-Core dependency remains governed exactly as before, and no additional
 exception may be inferred from it.
+
+### Amendment 2 — Fulfillment capability edges
+
+> **Authority:** architecture-owner decision OD-G1 (2026-11-07), limited to the two edges below. This is an amendment to
+> ADR-008, **not** a new ADR and **not** a reopening of the exception model. Core-to-Core dependencies remain forbidden by
+> default; type-only remains the default for every registered edge.
+
+| Dependency | Import kind | Symbols | Justification |
+| --- | --- | --- | --- |
+| `fulfillment → order` | **Type-only** | `OrderId`, `OrderAddressSnapshot` (and `OrderAddressRole` where needed) | Fulfillment references the committed order by identity and reuses the shipping-address snapshot contract. |
+| `fulfillment → organization` | **Type-only** | `TenantId` | Fulfillment repository contexts carry the nominal `TenantId`, as `OrderRepositoryContext` does. |
+
+Assessment against the acceptance criteria:
+
+- **(1) Capability ownership** — `order` owns `OrderId` and the address snapshot; `organization` owns `TenantId`.
+- **(2) Ownership direction** — the optional obligation capability depends on the commitment and on a value module; neither depends back.
+- **(3) Required contract dependency** — evaluated and approved by the architecture owner (OD-G1), not by the proposer.
+- **(4) No implementation coupling** — only public contract symbols are referenced.
+- **(5) No cycles** — `order` and `organization` do not depend on `fulfillment`; `fulfillment → order` stays one-way.
+- **(6) Documented** — this section, the closed-register table above, and the machine-readable register
+  (`decisions/data/adr-008-core-exception-register.json`, `schemaVersion` unchanged at `1`).
+- **(7) Type-only preferred** — both edges are type-only. `OrderId` and `TenantId` are nominal classes: the
+  `@comity/fulfillment` source MUST import them with `import type` and MUST NOT call `OrderId.create` or `TenantId.create`.
+  Registration alone does not establish this; see "Enforcement limits".
+- **(8) Contract surface isolation** — Fulfillment does not re-expose order or organization concepts it does not own.
+
+**Edge budget.** The Commerce capability set sanctions 1 + 1 + 3 + 3 = 8 edges; T-1 (nominal `TenantId` in Fulfillment)
+adds a ninth. The Commerce edge budget is raised from **≤ 8 to ≤ 9**. This amendment grants only the two edges above; every
+other sanctioned Commerce edge (`billing`, `subscription`, `quote`) still requires its own registration with its capability's ADR.
+
+**Enforcement limits.** No Comity validator evaluates this register today (the validator does not pass `registeredCoreEdges`),
+and Commerce's local `commerce/no-unregistered-core-edge` rule checks registration, not import kind. Type-only is therefore a
+**documented constraint**, not an enforced one, until type-only enforcement is configured.
 
 ### Ownership notes
 
@@ -320,6 +360,9 @@ orchestration sequence.
   same limited scope. The earlier statement that implementation remained separately authorized, and that no
   manifest/dependency/source change had been made, is historical pre-implementation guidance and is superseded by
   that release. This entry supersedes the pre-incorporation governance note at the top of this ADR.
+- **Amendment 2 incorporated (2026-11-07)** — `fulfillment → order` and `fulfillment → organization` are registered as
+  type-only Capability Exceptions in the closed register and in the machine-readable register (19 edges). The Commerce edge
+  budget is raised from 8 to 9. `schemaVersion` stays `1`.
 - **Completed** — Search Contract Isolation (Phase 15). The Candidates for Removal `catalog → search`, `taxonomy → search`, `content → search` were removed: repository `search()` methods were relocated to the search-owned `SearchPort<TProjection>` contract in `@comity/search`, and the Application/Composition layer (e.g., `@comity/storefront`) composes `ProductRepository` + `SearchPort<ProductProjection>` where required.
 - **Completed** — Phase 4 (HTML/Storefront HTTP decoupling). The Infrastructure Contract Exceptions `html → http` and `storefront → http` were removed: `@comity/html` returns rendering-only output (`HtmlOutput`) instead of `HttpResponse`, and `@comity/storefront` resolves context from a transport-neutral `StorefrontContextInput` instead of `HttpRequest`.
 - Infrastructure Contract Exceptions remain registered in ADR-008 and are tracked as future extraction candidates. Any extraction work requires a dedicated ADR. Only `router → http` remains registered.

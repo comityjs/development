@@ -1,5 +1,13 @@
 # @comity-dev/cli
 
+## 0.2.8
+
+### Patch Changes
+
+- 8a5913f: Fix `comity validate` (and `comity build` / `comity normalize`) failing with `spawn .../node_modules/.bin/comity-validate ENOENT` when `@comity-dev/cli` is the only installed Comity package under pnpm. The CLI now resolves delegated executables from its own declared dependencies (`@comity-dev/validate`, `@comity-dev/build`, `@comity-dev/package-tools`) via their `bin` field instead of the consumer's root `node_modules/.bin`, runs them with the current Node binary, forwards termination signals, reports a signal-killed child as exit status 128 + signal number, and fails with an error that preserves the underlying cause when an executable cannot be resolved.
+- Updated dependencies [62de6d9]
+  - @comity-dev/validate@0.5.1
+
 ## 0.2.7
 
 ### Patch Changes

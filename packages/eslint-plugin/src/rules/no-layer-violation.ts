@@ -3,23 +3,40 @@
  *
  * Forbid imports that violate Comity's canonical layering policy.
  *
- * Disallowed edges (default):
- *   - primitives  → any @comity/*
- *   - kernel      → anything except primitives
- *   - composition → anything except primitives, kernel
- *   - core        → adapters
- *   - adapters    → adapters (except integration-adapter → technology-adapter)
+ * The permitted edges per source layer are the table `LAYER_PROFILES` below. They follow
+ * ADR-025 §5 (formal package dependencies: Application → Technology Adapters → Core
+ * Modules → composition → kernel → primitives; every edge points downward), together with
+ * `layering-policy.md` §2 and `architecture-validation.md` §4.1:
  *
- * Technology adapters MAY import the core contract they implement
- * (declared via `implements` metadata).
+ *   - primitives          → no internal package
+ *   - kernel              → primitives
+ *                           (kernel → composition is forbidden, ADR-025 §5 "Forbidden")
+ *   - composition         → primitives, kernel
+ *                           (composition → any Core Module is forbidden, ADR-025 hard
+ *                           invariant)
+ *   - core                → primitives, kernel, composition, core
+ *                           (Core → Core is further gated by ADR-008, not by this rule)
+ *   - technology-adapter  → primitives, kernel, composition, and the Core Module it
+ *                           implements
+ *   - integration-adapter → primitives, kernel, core, technology-adapter
  *
- * Allowed Core-to-Core edges are gated by ADR-008; this rule does NOT
- * evaluate that register (it is enforced separately by the dependency
- * rules / orchestrator). Use this rule only to catch the obvious violations.
+ * Technology Adapters MAY import the core contract they implement (declared via
+ * `implements` metadata).
+ *
+ * A source package whose layer has no profile (for example `dev-tooling`), and a target
+ * that is not in the supplied classification, are outside this rule's scope. The
+ * classification is data supplied by the consumer (ADR-026); this rule never exempts a
+ * layer: there is no option to remove one.
+ *
+ * Allowed Core-to-Core edges are gated by ADR-008; this rule does NOT evaluate that
+ * register (it is enforced separately by the dependency rules / orchestrator). The
+ * sibling generator `@comity-dev/dependency-rules` expresses the same layer policy for
+ * dependency-cruiser; see `architecture-validation.md` §4.1 for how the two relate.
  *
  * Standard references:
+ *   - ADR-025 §5 (formal package dependencies)
  *   - layering-policy.md §2 (canonical layering model)
- *   - architecture-validation.md §7
+ *   - architecture-validation.md §4.1, §7
  *   - ADR-007 (adapter categories)
  */
 
@@ -34,9 +51,9 @@ const LAYER_PROFILES: Record<string, { allowed: Set<string> }> = {
   primitives: { allowed: new Set() },
   kernel: { allowed: new Set(["primitives"]) },
   composition: { allowed: new Set(["primitives", "kernel"]) },
-  core: { allowed: new Set(["primitives", "kernel", "core"]) },
+  core: { allowed: new Set(["primitives", "kernel", "composition", "core"]) },
   "technology-adapter": {
-    allowed: new Set(["primitives", "kernel"]),
+    allowed: new Set(["primitives", "kernel", "composition"]),
   },
   "integration-adapter": {
     allowed: new Set(["primitives", "kernel", "core", "technology-adapter"]),

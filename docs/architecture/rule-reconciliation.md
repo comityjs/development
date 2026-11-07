@@ -204,6 +204,35 @@ hidden rules — it is evidence of the forensic claim's inflation.
 
 ---
 
+## Open reconciliation items
+
+### RR-1 — `no-layer-violation` rejected the ADR-025 Core → composition dependency (recorded 2026-11-07; implemented 2026-11-07)
+
+- **Affected package and rule:** `@comity-dev/eslint-plugin` (`0.3.0` published and installed everywhere; the source now carries the fix, **not yet
+  released**), rule `@comity-dev/no-layer-violation` (`packages/eslint-plugin/src/rules/no-layer-violation.ts`, `LAYER_PROFILES`).
+- **What changed:** `composition` was added to `core.allowed` and to `technology-adapter.allowed`. Nothing else in the profiles, and not the
+  option schema, changed. The `kernel`, `primitives` and `composition` profiles, which keep `kernel → composition`, `primitives → composition`
+  and composition → Core forbidden, were left as they were. The rule header documents the table.
+- **Why the adapter entry:** the same defect rejected Technology Adapters importing `@comity/composition`, which `architecture-validation.md` §4.1
+  ("composition infrastructure") and `layering-policy.md` §2.3 permit, and which five Community adapters do (`auth-jose`, `cache-kv`,
+  `cache-redis`, `http-hono`, `i18n-typesafe`). Integration Adapters were not changed: the policy is silent about them.
+- **Acceptance criteria:**
+  1. `composition` in `core.allowed` — **done**.
+  2. Tests that Core → composition (including `/setup`) is accepted — **done** (`no-layer-violation.test.ts`).
+  3. Negative tests that `kernel → composition` and `primitives → composition` are still rejected — **done**.
+  4. Tests for composition-layer sources — **done** (composition → Core, → adapters rejected; → kernel, → primitives accepted).
+  5. `layering-policy.md` §2 reconciled with ADR-025 §5 — **done**.
+  6. `architecture-validation.md` §4.1 reconciled with ADR-025 §5 — **done**.
+  7. Plugin behaviour matches the dependency-rules generator — **done except three documented differences**, tested in
+     `packages/validate/src/__tests__/layer-policy-agreement.test.ts`: sibling packages inside the primitives / kernel / composition
+     layer, Technology Adapter → a Core Module it does not implement (ESLint stricter, by design: ADR-007), and Integration Adapter →
+     composition (ESLint stricter; the policy is silent).
+- **Remaining:** the change is in source only. A plugin release is needed before consumers get it; Commerce still carries its temporary
+  workaround until it installs that release (its removal trigger is recorded in the Commerce implementation README). The rule still
+  visits only `ImportDeclaration` and ignores `@comity-dev/*` specifiers, and it does nothing for source layers without a profile
+  (for example `dev-tooling`); those were out of scope.
+- **Status:** implemented and tested in source; **complete for RR-1's acceptance criteria, release outstanding.**
+
 ## Authority
 
 This document is the authoritative reconciliation between the Comity

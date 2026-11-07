@@ -1,5 +1,12 @@
 # @comity-dev/cli
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [caf3bc7]
+  - @comity-dev/validate@0.5.0
+
 ## 0.2.6
 
 ### Patch Changes

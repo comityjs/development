@@ -1,4 +1,5 @@
 import type { Repository } from "../discover.js";
+import type { ResolvedTool } from "../tool-resolution.js";
 import type { EngineResult, Finding } from "./types.js";
 
 import {
@@ -6,7 +7,7 @@ import {
   classifyByLayer,
 } from "@comity-dev/dependency-rules";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 
@@ -225,7 +226,10 @@ function toPosix(p: string): string {
   return p.replace(/\\/g, "/");
 }
 
-export function runDepcruise(repo: Repository, binDir: string): EngineResult {
+export function runDepcruise(
+  repo: Repository,
+  depcruise: ResolvedTool,
+): EngineResult {
   const start = Date.now();
   const elapsed = (): number => Date.now() - start;
 
@@ -252,9 +256,7 @@ export function runDepcruise(repo: Repository, binDir: string): EngineResult {
     reason,
   });
 
-  const bin = resolve(binDir, "depcruise");
-
-  if (!existsSync(bin)) {
+  if (!depcruise.ok) {
     return {
       executed: false,
       exitCode: null,
@@ -263,7 +265,7 @@ export function runDepcruise(repo: Repository, binDir: string): EngineResult {
       duration: elapsed(),
       status: "TOOL-UNAVAILABLE",
       tool: TOOL,
-      reason: `dependency-cruiser binary not found at ${bin}`,
+      reason: depcruise.reason,
     };
   }
 
@@ -323,9 +325,17 @@ export function runDepcruise(repo: Repository, binDir: string): EngineResult {
       toPosix(relative(repo.root, p.path)),
     );
 
+    // Run the resolved script with the current Node binary.
     const proc = spawnSync(
-      bin,
-      ["--config", configPath, "--output-type", "json", ...targets],
+      process.execPath,
+      [
+        depcruise.script,
+        "--config",
+        configPath,
+        "--output-type",
+        "json",
+        ...targets,
+      ],
       {
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,

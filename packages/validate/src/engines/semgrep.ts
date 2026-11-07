@@ -13,7 +13,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { relative, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { join, relative, resolve } from "node:path";
 
 /** Default overall Semgrep scan timeout: five minutes. */
 export const DEFAULT_SEMGREP_TIMEOUT_MS = 300_000;
@@ -572,10 +573,16 @@ export async function runSemgrep(
   // --config path, so we concatenate all canonical rule files into one
   // synthesized config.
   const configYaml = await buildSemgrepConfig();
-  const tmpDir = mkdtempSync("/tmp/comity-validate-semgrep-");
+  const tmpDir = mkdtempSync(join(tmpdir(), "comity-validate-semgrep-"));
   const configPath = `${tmpDir}/semgrep-config.yaml`;
 
-  writeFileSync(configPath, configYaml);
+
+  try {
+    writeFileSync(configPath, configYaml);
+  } catch (error) {
+    rmSync(tmpDir, { recursive: true, force: true });
+    throw error;
+  }
 
   const pathDirs = (process.env["PATH"] ?? "").split(":").filter(Boolean);
   const fallbackDirs = ["/usr/local/bin", "/opt/homebrew/bin"];
@@ -647,9 +654,6 @@ export async function runSemgrep(
   const envPath = [
     ...new Set(configuredDirs),
     ...candidateDirs,
-    "/Users/filippo/Library/Python/3.14/bin",
-    "/Users/filippo/Library/Python/3.13/bin",
-    "/Users/filippo/Library/Python/3.12/bin",
     process.env["PATH"] ?? "",
     "/usr/bin",
     "/bin",

@@ -29,6 +29,15 @@ The engines wrap shared Development-owned tooling:
 
 Engines report one of `PASS` / `FAIL` / `NOT-RUN` / `TOOL-UNAVAILABLE` / `CONFIGURATION-ERROR` / `EXECUTION-ERROR` / `NOT-APPLICABLE`. `PASS` is only reported when the engine actually executed.
 
+### Tool and configuration resolution
+
+The tools the validator runs (`dependency-cruiser`, `eslint`) and the modules its generated ESLint configuration imports (`@comity-dev/eslint-plugin`, `@comity-dev/eslint-plugin/recommended`, `@typescript-eslint/parser`) are the validator's **own declared dependencies**. They are resolved from the validator's installed location with `import.meta.resolve`, and an executable is the script declared in the dependency's `bin` field, run with the current Node binary. The result is the same under npm (hoisted) and pnpm (isolated) layouts.
+
+- Consumers do **not** need to install these packages directly, and consumer-installed versions are not used: ESLint always lints with the plugin and parser versions this validator declares.
+- `node_modules/.bin`, the consumer repository's `node_modules`, and global installs are never consulted.
+- If a dependency cannot be resolved the engine reports `TOOL-UNAVAILABLE` with the reason; ESLint output that cannot be interpreted (including exit code 0 with malformed output) is `EXECUTION-ERROR`, never `PASS`, and the tool's stderr is kept in the finding.
+- Semgrep is an external Python tool and is still discovered through `SEMGREP_BIN`, `PATH`, and the standard system locations.
+
 ### Dependency engine (`depcruise`)
 
 The engine generates architecture rules with `@comity-dev/dependency-rules`, runs `dependency-cruiser --output-type json` from the repository root, and validates the result before trusting it.

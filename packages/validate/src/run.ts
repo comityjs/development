@@ -1,8 +1,6 @@
 import type { EngineResult, Finding } from "./engines/types.js";
 import type { ExitCodeValue } from "./exit-codes.js";
 
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { discoverRepository, type Repository } from "./discover.js";
 import { runAdapterPeers } from "./engines/adapter-peers.js";
 import { runDeclarationDependencies } from "./engines/declaration-dependencies.js";
@@ -12,6 +10,7 @@ import { runPackedSurface } from "./engines/packed-surface.js";
 import { runSchema } from "./engines/schema.js";
 import { runSemgrep } from "./engines/semgrep.js";
 import { ExitCode } from "./exit-codes.js";
+import { resolveToolScript } from "./tool-resolution.js";
 
 export interface RunOptions {
   /** The root directory of the repository to validate */
@@ -126,15 +125,6 @@ function emptyCategory(reason: string): CategoryResult {
   };
 }
 
-function findBinDir(): string {
-  const __dirname = dirname(fileURLToPath(import.meta.url));
-
-  // `__dirname` is the directory of the running module. Both the source
-  // `src/` and the built `dist/` are direct children of the package root,
-  // so the package's own `node_modules/.bin` is always exactly one level
-  // up from the running module.
-  return resolve(__dirname, "..", "node_modules", ".bin");
-}
 /**
  * Run validation against a repository. Returns a normalized result.
  *
@@ -145,7 +135,6 @@ function findBinDir(): string {
 export async function runValidation(options: RunOptions): Promise<RunResult> {
   const only = options.only ?? null;
   const repo: Repository = await discoverRepository({ root: options.root });
-  const binDir = findBinDir();
 
   let schemaResult: EngineResult;
   let metaResult: EngineResult;
@@ -182,7 +171,10 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
   let depResult: EngineResult;
 
   if (!only || only === "dependencies" || only === "depcruise") {
-    depResult = runDepcruise(repo, binDir);
+    depResult = runDepcruise(
+      repo,
+      resolveToolScript("dependency-cruiser", "depcruise"),
+    );
   } else {
     depResult = emptyEngineResult("dependencies engine skipped");
   }
@@ -190,7 +182,7 @@ export async function runValidation(options: RunOptions): Promise<RunResult> {
   let eslintResult: EngineResult;
 
   if (!only || only === "eslint") {
-    eslintResult = runEslint(repo, binDir);
+    eslintResult = runEslint(repo, resolveToolScript("eslint", "eslint"));
   } else {
     eslintResult = emptyEngineResult("eslint engine skipped");
   }

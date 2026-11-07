@@ -1,7 +1,7 @@
 import type { Repository } from "../../discover.js";
+import type { ResolvedTool } from "../../tool-resolution.js";
 
 import {
-  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -20,7 +20,6 @@ import { exitCodeForResult, runValidation } from "../../run.js";
 import { parseDepcruiseResult, runDepcruise } from "../depcruise.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const realBinDir = resolve(here, "../../../node_modules/.bin");
 const fixture = (n: string): string =>
   readFileSync(join(here, "__fixtures__", n), "utf8");
 const VIOLATIONS_16_10_4 = fixture("depcruise-16.10.4-violations.json");
@@ -185,12 +184,10 @@ describe("parseDepcruiseResult (captured dependency-cruiser 16.10.4 output)", ()
 interface StubOptions {
   /** JS body executed by the stub; receives `config` (parsed --config file). */
   body: string;
-  /** Skip chmod +x. */
-  notExecutable?: boolean;
 }
 
-/** Creates a bin dir whose `depcruise` is a deterministic stub. */
-function stubBinDir({ body, notExecutable }: StubOptions): string {
+/** Creates a deterministic stub script, resolved like the real tool. */
+function stubTool({ body }: StubOptions): ResolvedTool {
   const bin = tmp("comity-stub-bin-");
   const file = join(bin, "depcruise");
 
@@ -214,9 +211,8 @@ const violation = (rule, severity) => ({ type: "dependency", from: "packages/ker
 ${body}
 `,
   );
-  chmodSync(file, notExecutable ? 0o644 : 0o755);
 
-  return bin;
+  return { ok: true, script: file };
 }
 
 async function layeredRepo(): Promise<Repository> {
@@ -246,7 +242,7 @@ describe("runDepcruise process handling", () => {
   it("1. successful cruise without violations → PASS", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({ body: "process.stdout.write(result([]));" }),
+      stubTool({ body: "process.stdout.write(result([]));" }),
     );
 
     expect(r).toMatchObject({ status: "PASS", passed: true, executed: true, exitCode: 0 });
@@ -256,7 +252,7 @@ describe("runDepcruise process handling", () => {
   it("2. reporter exits 0 with an error violation → FAIL (exit code is not a verdict)", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({ body: 'process.stdout.write(result([violation("kernel-no-core-deps", "error")]));' }),
+      stubTool({ body: 'process.stdout.write(result([violation("kernel-no-core-deps", "error")]));' }),
     );
 
     expect(r).toMatchObject({ status: "FAIL", passed: false, exitCode: 0 });
@@ -274,7 +270,7 @@ describe("runDepcruise process handling", () => {
   it("2b. warn/info only → PASS, but reported as warnings", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({
+      stubTool({
         body: 'process.stdout.write(result([violation("kernel-no-core-deps", "warn"), violation("kernel-only-primitives", "info")]));',
       }),
     );
@@ -286,7 +282,7 @@ describe("runDepcruise process handling", () => {
   it("2c. findings are counted once (entries, not entries + counters)", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({
+      stubTool({
         body: 'process.stdout.write(result([violation("kernel-no-core-deps", "error"), violation("kernel-only-primitives", "error")]));',
       }),
     );
@@ -297,7 +293,7 @@ describe("runDepcruise process handling", () => {
   it("3. non-zero exit without output → EXECUTION-ERROR", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({ body: 'process.stderr.write("boom\\n"); process.exit(3);' }),
+      stubTool({ body: 'process.stderr.write("boom\\n"); process.exit(3);' }),
     );
 
     expect(r).toMatchObject({ status: "EXECUTION-ERROR", passed: false, exitCode: 3 });
@@ -308,7 +304,7 @@ describe("runDepcruise process handling", () => {
   it("3b. non-zero exit with a clean result is inconsistent → EXECUTION-ERROR", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({ body: "process.stdout.write(result([])); process.exit(2);" }),
+      stubTool({ body: "process.stdout.write(result([])); process.exit(2);" }),
     );
 
     expect(r).toMatchObject({ status: "EXECUTION-ERROR", passed: false, exitCode: 2 });
@@ -317,7 +313,7 @@ describe("runDepcruise process handling", () => {
   it("3c. non-zero exit with error violations → FAIL with findings", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({
+      stubTool({
         body: 'process.stdout.write(result([violation("kernel-no-core-deps", "error")])); process.exit(1);',
       }),
     );
@@ -326,20 +322,20 @@ describe("runDepcruise process handling", () => {
     expect(r.findings).toHaveLength(1);
   });
 
-  it("4. process startup failure → EXECUTION-ERROR", async () => {
-    const r = runDepcruise(
-      await layeredRepo(),
-      stubBinDir({ body: "", notExecutable: true }),
-    );
+  it("4. a resolved script that cannot be loaded → EXECUTION-ERROR", async () => {
+    const r = runDepcruise(await layeredRepo(), {
+      ok: true,
+      script: join(tmp("comity-no-script-"), "missing.js"),
+    });
 
-    expect(r).toMatchObject({ status: "EXECUTION-ERROR", passed: false });
-    expect(r.reason).toMatch(/could not be run/);
+    expect(r).toMatchObject({ status: "EXECUTION-ERROR", passed: false, executed: true });
+    expect(r.reason).toMatch(/exited with code/);
   });
 
   it("5. termination by signal → EXECUTION-ERROR", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({ body: 'process.kill(process.pid, "SIGKILL");' }),
+      stubTool({ body: 'process.kill(process.pid, "SIGKILL");' }),
     );
 
     expect(r).toMatchObject({ status: "EXECUTION-ERROR", passed: false });
@@ -353,7 +349,7 @@ describe("runDepcruise process handling", () => {
     ["legacy top-level violations", 'process.stdout.write(JSON.stringify({ violations: [] }));'],
     ["output only on stderr", 'process.stderr.write(result([]));'],
   ])("6. %s with exit 0 → EXECUTION-ERROR, never PASS", async (_n, body) => {
-    const r = runDepcruise(await layeredRepo(), stubBinDir({ body }));
+    const r = runDepcruise(await layeredRepo(), stubTool({ body }));
 
     expect(r).toMatchObject({ status: "EXECUTION-ERROR", passed: false, executed: true });
     expect(r.findings).toHaveLength(1);
@@ -363,7 +359,7 @@ describe("runDepcruise process handling", () => {
   it("7. a different number of applied rules than generated → EXECUTION-ERROR", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({ body: "process.stdout.write(result([], { forbidden: [] }));" }),
+      stubTool({ body: "process.stdout.write(result([], { forbidden: [] }));" }),
     );
 
     expect(r).toMatchObject({ status: "EXECUTION-ERROR", passed: false });
@@ -373,7 +369,7 @@ describe("runDepcruise process handling", () => {
   it("7b. no cruised module governed by any rule → EXECUTION-ERROR", async () => {
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({
+      stubTool({
         body: 'process.stdout.write(result([], { modules: [{ source: "elsewhere/x.ts" }] }));',
       }),
     );
@@ -386,7 +382,7 @@ describe("runDepcruise process handling", () => {
     // Only the kernel module is cruised, so the core-only rule matches nothing.
     const r = runDepcruise(
       await layeredRepo(),
-      stubBinDir({ body: "process.stdout.write(result([]));" }),
+      stubTool({ body: "process.stdout.write(result([]));" }),
     );
 
     expect(r.status).toBe("PASS");
@@ -396,7 +392,7 @@ describe("runDepcruise process handling", () => {
     const repo = await layeredRepo();
     const r = runDepcruise(
       repo,
-      stubBinDir({
+      stubTool({
         body: `if (process.cwd() !== fs.realpathSync(${JSON.stringify(repo.root)})) process.exit(9);
 if (!args.includes("packages/kernel") || !args.includes("packages/catalog")) process.exit(8);
 process.stdout.write(result([]));`,
@@ -406,10 +402,18 @@ process.stdout.write(result([]));`,
     expect(r.status).toBe("PASS");
   });
 
-  it("missing binary → TOOL-UNAVAILABLE (unchanged)", async () => {
-    const r = runDepcruise(await layeredRepo(), tmp("comity-empty-bin-"));
+  it("unresolvable tool → TOOL-UNAVAILABLE with the resolution reason", async () => {
+    const r = runDepcruise(await layeredRepo(), {
+      ok: false,
+      reason: "cannot resolve dependency \"dependency-cruiser\"",
+      cause: new Error("boom"),
+    });
 
-    expect(r).toMatchObject({ status: "TOOL-UNAVAILABLE", executed: false });
+    expect(r).toMatchObject({
+      status: "TOOL-UNAVAILABLE",
+      executed: false,
+      reason: expect.stringContaining("dependency-cruiser"),
+    });
   });
 
   it("repository without layered packages → NOT-APPLICABLE, not a fabricated PASS", async () => {
@@ -420,7 +424,7 @@ process.stdout.write(result([]));`,
 
     const r = runDepcruise(
       await discoverRepository({ root }),
-      stubBinDir({ body: "process.exit(99);" }),
+      stubTool({ body: "process.exit(99);" }),
     );
 
     expect(r).toMatchObject({ status: "NOT-APPLICABLE", executed: false });

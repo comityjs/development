@@ -105,6 +105,26 @@
       "adrReference": "ADR-008 — Dependency Register, Capability Exceptions"
     },
     {
+      "from": "@comity/fulfillment",
+      "to": "@comity/order",
+      "layer": "core-to-core",
+      "categories": ["capability"],
+      "importKind": "type-only",
+      "lifecycle": "approved",
+      "justification": "Fulfillment references the committed order by OrderId and reuses the OrderAddressSnapshot contract for shipping recipients; it never holds an Order and imports no value from @comity/order.",
+      "adrReference": "ADR-008 — Amendment 2, Capability Exceptions"
+    },
+    {
+      "from": "@comity/fulfillment",
+      "to": "@comity/organization",
+      "layer": "core-to-core",
+      "categories": ["capability"],
+      "importKind": "type-only",
+      "lifecycle": "approved",
+      "justification": "Fulfillment repository contracts require TenantId for multi-tenant isolation, as order and customer repositories do.",
+      "adrReference": "ADR-008 — Amendment 2, Capability Exceptions"
+    },
+    {
       "from": "@comity/customer",
       "to": "@comity/validation",
       "layer": "core-to-core",

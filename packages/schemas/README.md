@@ -7,7 +7,7 @@ Canonical, machine-readable JSON Schema definitions for Comity package metadata,
 ## Scope
 
 - `package-metadata.v1.json` — required fields and types for every `@comity/*` package's `package.json` (`name`, `version`, `type`, `license`, `engines`, `exports`, `comity.layer`, `comity.implements`).
-- ADR-008 register schema — machine-readable composition exception register.
+- ADR-008 register schema and register — the canonical JSON Schema 2020-12 document and register from `docs/standards/decisions/data/`, embedded at build time (`pnpm --filter @comity-dev/schemas generate`); `adr008CoreExceptionRegister` is derived, never hand-edited. Compile with `createAjv2020Instance()`.
 - `comity-config.json` schema — repository-level configuration shape.
 
 ## Ownership

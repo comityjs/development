@@ -1,5 +1,12 @@
 # @comity-dev/validate
 
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [df5a7b6]
+  - @comity-dev/schemas@0.4.0
+
 ## 0.5.2
 
 ### Patch Changes

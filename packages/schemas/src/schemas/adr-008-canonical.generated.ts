@@ -307,6 +307,18 @@ export const adr008CanonicalRegister: Adr008Register = {
       "adrReference": "ADR-008 — Amendment 2, Capability Exceptions"
     },
     {
+      "from": "@comity/entitlement",
+      "to": "@comity/organization",
+      "layer": "core-to-core",
+      "categories": [
+        "capability"
+      ],
+      "importKind": "type-only",
+      "lifecycle": "approved",
+      "justification": "Entitlement repository contexts require the nominal TenantId for multi-tenant isolation, as order, customer and fulfillment repositories do.",
+      "adrReference": "ADR-008 — Amendment 3, Capability Exceptions"
+    },
+    {
       "from": "@comity/customer",
       "to": "@comity/validation",
       "layer": "core-to-core",

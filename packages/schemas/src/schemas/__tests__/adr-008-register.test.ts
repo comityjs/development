@@ -32,8 +32,25 @@ describe("canonical ADR-008 register", () => {
     expect(result.valid).toBe(true);
   });
 
-  it("registers 19 edges, including the two Fulfillment edges exactly once", () => {
-    expect(canonicalRegister.edges).toHaveLength(19);
+  it("registers 20 edges, including the Entitlement edge exactly once as type-only", () => {
+    expect(canonicalRegister.edges).toHaveLength(20);
+    const entitlement = canonicalRegister.edges.filter(
+      (e) => e.from === "@comity/entitlement" && e.to === "@comity/organization",
+    );
+    expect(entitlement).toHaveLength(1);
+    expect(entitlement[0]).toMatchObject({
+      layer: "core-to-core",
+      categories: ["capability"],
+      importKind: "type-only",
+      lifecycle: "approved",
+    });
+  });
+
+  it("keeps schemaVersion at 1", () => {
+    expect(canonicalRegister.schemaVersion).toBe(1);
+  });
+
+  it("registers the two Fulfillment edges exactly once", () => {
     for (const to of ["@comity/order", "@comity/organization"]) {
       const matches = canonicalRegister.edges.filter(
         (e) => e.from === "@comity/fulfillment" && e.to === to,

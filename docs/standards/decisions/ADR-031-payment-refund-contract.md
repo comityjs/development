@@ -3,8 +3,16 @@
 > **Provenance:**
 > - Canonical owner: comity-development
 > - Raised by: Commerce Foundation v0 prerequisite **C4** (`commerce/docs/architecture/resolution/`)
+> - **Revised in place (Payment design proposal revision 3).** Identity, number and status are unchanged. The original decision (separate optional port,
+>   amount-only partial refunds, `pending | succeeded | failed`, provider-enforced cumulative bound) is **retained**. This revision adds the stable
+>   **refund-attempt identity**, makes `refundId` and refund lookup mandatory for asynchronous refunds, defines duplicate handling and the planned reversal
+>   identity, and closes former Q1 and Q3. The lifecycle vocabulary and capability rules are in **ADR-037**; key rules are in **ADR-030**. The three ADRs are
+>   accepted together.
+> - **Amended by the owner-approved decision OD-F9 (amount representability).** `RefundOutcome.amount` follows the requested / provider-reported / provider-confirmed
+>   distinction of ADR-037 §3 and §8b: mandatory on `succeeded`, three-state on `pending` and `failed`, and never the requested amount echoed back. Status, identity and
+>   every other decision of this ADR are unchanged.
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 
@@ -18,106 +26,183 @@ it. This ADR adds that movement as its own operation and outcome and leaves `Pay
 
 ### Verified repository facts
 
-- `PaymentProvider` exposes only `initiate`; `PaymentRequest` is `{ amount; reference? }`; `PaymentOutcome` is `{ paymentId?; amount; status; provider?;
-  reference?; authorizedAt?; capturedAt? }`.
-- `PaymentOutcome.paymentId` is optional ("if available").
+- `PaymentProvider` exposes only `initiate`; `PaymentOutcome.paymentId` is optional ("if available").
 - `Money` is a non-negative `bigint` of minor units with an embedded `Currency` (`pricing/src/value-objects/money.ts`); zero is representable.
 - Provider declines are outcomes, not errors; `PaymentErrorReason` is `invalid_request | internal_error`.
 - `OrderPaymentSnapshot` records payment facts as an owned mirror; Order does not import `@comity/payment`.
-- ADR-030 (Proposed) defines the idempotency-key contract this ADR reuses.
+- The Commerce design defers `Order.recordReversal`: a reversal is a separate append-only fact (`kind`, `amount`, `paymentId`, `recordedAt`, `reference?`,
+  `reason?`) with invariant `Σ reversals ≤ Σ captured` per `paymentId`; **it has no identity field today**
+  (`commerce/docs/architecture/08-typescript-contracts.md` §4.2, `03-bounded-contexts.md` §3.2c). Its implementation is gated by this ADR.
+- ADR-030 (Accepted) defines the idempotency-key contract this ADR reuses; ADR-037 (Accepted) defines the lifecycle, the capability rules and lookup.
 
 ## Problem statement
 
 Define the minimal portable refund operation and outcome such that:
 
-1. a full or partial refund of a captured payment can be requested and its result observed;
-2. repeated and conflicting requests are safe;
+1. a full or partial refund of a captured payment can be requested and its result observed, including when it completes later;
+2. repeated and conflicting requests, and duplicate provider notifications, are safe;
 3. the contract states only what a provider abstraction can uphold;
-4. Commerce can later translate *confirmed* refund outcomes into its own append-only reversal facts without `@comity/payment` knowing anything about
-   orders.
+4. Commerce can later translate *confirmed* refund outcomes into append-only reversal facts without `@comity/payment` knowing anything about orders, and
+   without a duplicated notification creating a duplicated fact.
 
-Out of scope: voiding/cancelling an authorization, chargebacks and disputes, payouts, fees, and the Commerce `Order.recordReversal` operation.
+Out of scope: voiding or cancelling an authorization (ADR-037), chargebacks and disputes, payouts, fees, and the Commerce `Order.recordReversal`
+operation and ADR-032 Amendment 4 (both deferred).
 
 ## Decision
 
-### 1. A separate, optional port
+### 1. A separate, optional port, with mandatory lookup
 
 Refunds are a **separate optional contract**, `PaymentRefundProvider`, not a new method on `PaymentProvider`:
 
 ```ts
 interface PaymentRefundProvider {
   refund(request: RefundRequest): Promise<Result<RefundOutcome, PaymentError>>;
+  retrieveRefund(refundId: string): Promise<Result<RefundOutcome | null, PaymentError>>; // mandatory
 }
 ```
 
 Reason: adding a method to `PaymentProvider` would break every implementer and force providers without refund support to fake one. An adapter that
-supports both implements both interfaces.
+supports both implements both interfaces. `retrieveRefund` is **mandatory in the refund port**, because refunds are commonly asynchronous and `pending`
+cannot otherwise be resolved (closes former Q1). A binding declares refund support through the capability descriptor (ADR-037 §5): `refund:
+false | { partial, multiple, asynchronous }`, with `multiple ⇒ partial`.
 
-### 2. `RefundRequest`
+### 2. Refund identity: `RefundAttemptId`, `reference` and `refundId`
+
+Each refund is one application operation with its own stable identity.
+
+| Identifier | Generated by | Role |
+|---|---|---|
+| `refundDecisionId` | Application | The business decision that causes a refund (for example a cancellation). One decision may yield one refund attempt |
+| **`RefundAttemptId`** | Application (opaque, globally unique) | **Stable identity of one refund operation**, known **before** the provider call and never absent. Sent to the provider as `RefundRequest.reference`. It is the identity used to deduplicate the Order reversal (§7) |
+| Refund idempotency key | Application | One key per refund attempt (ADR-030). Recommended derivation: `refund:{RefundAttemptId}` |
+| `refundId` | Provider | Provider identity of the refund. Persisted with the attempt, correlation key for lookup and notifications |
+
+Rules: the application creates and persists the refund-attempt record, with the key, **before** calling `refund`; a retry reuses the same record and key
+(ADR-030 §2). The attempt store provides atomic uniqueness of `RefundAttemptId`, of `(binding, idempotencyKey)`, of `(binding, refundId)` and of
+`(tenant, OrderId, refundDecisionId)`, so a repeated business decision cannot create two refunds.
+
+### 3. `RefundRequest`
 
 | Field | Rule |
 |---|---|
-| `paymentId: string` | Required. Identifies the original payment (as returned by `initiate`). A payment with no `paymentId` cannot be refunded through this contract |
+| `paymentId: string` | Required. Identifies the original payment (the `ProviderPaymentId` returned by `initiate`). A payment with no `paymentId` cannot be refunded through this contract |
 | `amount: Money` | Required, **strictly positive**, in the payment's currency. Zero → `invalid_request` |
-| `idempotencyKey: string` | Required; same format, scope, lifetime and conflict rules as ADR-030 |
-| `reference?: string` | Optional opaque caller correlation, as in `PaymentRequest` |
+| `idempotencyKey: string` | Required; same format, scope, retention and conflict rules as ADR-030 |
+| `reference: string` | **Required**: the `RefundAttemptId` |
 | `reason?: string` | Optional, opaque, informational; **not** part of request equivalence |
 
 There is no `full: boolean`. A *full* refund is a refund whose amount equals the amount still refundable; a *partial* refund is any smaller positive
 amount. One representation avoids two ways to say the same thing.
 
-### 3. `RefundOutcome` and states
+### 4. `RefundOutcome`, status and relationship to the payment state
 
 ```ts
-type RefundStatus = "pending" | "succeeded" | "failed";
+// OperationStatus is the vocabulary shared with capture and cancel (ADR-037)
+type OperationStatus = "pending" | "succeeded" | "failed";
 
-interface RefundOutcome {
-  refundId?: string;      // provider-assigned identity of this refund
+// `ReportedAmount` is defined in ADR-037 §3: a valid `amount`, OR no amount (none supplied), OR `providerAmountUnusable: true` (supplied but unusable); never both.
+interface RefundOutcomeFields {
+  provider: string;       // binding id
   paymentId: string;      // the original payment, echoed
-  amount: Money;          // amount of THIS refund, same currency as the payment
-  status: RefundStatus;
-  provider?: string;
-  reference?: string;     // echoed
+  reference?: string;     // echoed RefundAttemptId: optional; present when the provider returns it, and then validated against the RefundAttemptId
   refundedAt?: Instant;   // when the refund succeeded, if known
 }
+
+type RefundOutcome =
+  | (RefundOutcomeFields & { status: "succeeded"; refundId: string; amount: Money })                  // provider-confirmed: mandatory, valid
+  | (RefundOutcomeFields & ReportedAmount & { status: "pending"; refundId: string })                  // provider-reported amount, none, or flagged
+  | (RefundOutcomeFields & ReportedAmount & { status: "failed"; refundId?: string });                 // confirmed failure: same three states
 ```
 
-- `succeeded` is the only **confirmed** outcome: money has been returned.
-- `failed` is a provider decline, reported as an **outcome**, not an error (the existing convention).
-- `pending` exists because refunds are commonly asynchronous. It is **not** confirmation. Resolving `pending` to `succeeded`/`failed` is provider-specific
-  (see Unresolved questions); this ADR defines no polling or webhook abstraction.
-- `PaymentStatus` is not changed. `refunded` is never a payment status.
+- `succeeded` is the only **confirmed** outcome: money has been returned. It requires a **valid, provider-confirmed `amount`** and a `refundId`. A `succeeded` response whose amount
+  is missing or unusable is **not** an ordinary success and **not** an unknown outcome: it is a confirmed-success anomaly signalled as `unrepresentable_success`
+  (`scope: "refund"`, ADR-037 §8b), held for attributed manual reconciliation, and it records **no reversal**.
+- `failed` is a provider decline (over-refund, window elapsed, method restriction), reported as an **outcome**, not an error. A new refund after a
+  `failed` outcome requires a new business decision, a new `RefundAttemptId` and a new key; the same key would replay `failed`.
+- `pending` is **not** confirmation. It is resolved by `retrieveRefund(refundId)`, by a verified `refund` notification (ADR-037), or by reconciliation. A pending refund MAY carry a valid
+  **provider-reported** amount, **no** amount when the provider supplied none, or `providerAmountUnusable: true` when the provider supplied an amount that cannot be represented;
+  the three states stay distinguishable. It never creates a reversal.
+- **The requested refund amount is never echoed into `RefundOutcome`.** It remains application-owned and separately persisted on the refund attempt. The three amounts are
+  distinct: *requested* (submitted by the application), *provider-reported* (returned by the provider, including while pending), *provider-confirmed* (authoritatively confirmed on
+  `succeeded`).
+- **A refund's status is an operation status, not a payment state.** `PaymentStatus` is not changed and `refunded` is never a payment status. A refund
+  references the payment by `paymentId` and never mutates it; the original outcome stays as reported. A payment with several refunds has no single
+  "refunded" state.
 
-### 4. Relationship to the original payment
-
-A refund is a distinct entity keyed by `refundId`; it **references** the payment by `paymentId` and never mutates it. The original `PaymentOutcome`
-stays as it was reported. A refund's currency MUST equal the payment's currency. The refundable amount is *captured amount − Σ(non-failed refunds)*;
-this quantity is owned by the provider, which is the only party that knows it.
+**Adapter dependency boundary.** `RefundOutcome.amount`, where present, is a `Money`. A refund-capable adapter has **no runtime dependency on `@comity/pricing`**: it builds
+`Money` through the factory injected at the composition boundary, which uses the public `Currency.create` and `Money.create`. Type-only dependencies remain
+subject to the existing layering rules. This changes no refund behaviour; the normative rule is ADR-037 §8a.
 
 ### 5. Idempotency, repeats and conflicts
 
 - Same `idempotencyKey`, same request (`paymentId`, `amount`, `reference`): **no second refund**; return the original `RefundOutcome` (same `refundId`).
+  The replay may report the original status (for example `pending`) even if the refund has since completed; the current status comes from `retrieveRefund`.
 - Same key, **different** request: no refund; `PaymentError("idempotency_conflict")`, cause `request_mismatch` (ADR-030).
 - Same key while the first is in flight: no second refund; wait-and-replay or `idempotency_conflict` with cause `in_progress`.
 - **Different keys**, same amount: two independent refunds. This is required: two partial refunds of the same amount are legitimate, which is exactly why a
-  key is needed instead of deduplicating on content.
-- Over-refund: two different keys that together exceed the refundable amount are **rejected by the provider**; the adapter maps that to a `failed`
-  outcome. Comity cannot enforce the cumulative bound because it holds no payment state.
+  key is needed instead of deduplicating on content. Consequently the **application** MUST persist the refund decision and key before calling, because a
+  second business decision with a new key is, by design, a second refund.
+- **Unknown outcome** (timeout, `internal_error`): the refund attempt stays unresolved. Retry with the same key within the retention window; after it, do
+  not replay (ADR-030 §6) and resolve by lookup or attributed manual reconciliation. A timeout is never proof that the refund did not happen.
+- **Over-refund:** two different keys that together exceed the refundable amount are **rejected by the provider**; the adapter maps that to a `failed`
+  outcome. Comity cannot enforce the cumulative bound on money because it holds no payment state. The application additionally pre-checks
+  `captured − Σ(succeeded + pending refund attempts)` from its own refund-attempt records, and the Order will enforce `Σ reversals ≤ Σ captured` on recorded
+  facts when `recordReversal` ships.
 
-### 6. Errors
+### 6. Duplicate notifications and asynchronous completion
 
-No new reason is added beyond ADR-030's `idempotency_conflict`. Unknown `paymentId`, non-positive amount, currency mismatch detectable from the request
-alone, or a malformed key are `invalid_request`; transport/provider infrastructure failures are `internal_error`. Provider business refusals (not
-refundable, window elapsed, already fully refunded) are `failed` outcomes.
+- A `refund` notification (ADR-037) carries `provider`, `eventId`, `paymentId`, `refundId`, `status`, an amount with the same presence semantics as `RefundOutcome` (mandatory
+  and valid on `succeeded`; valid, absent or flagged `providerAmountUnusable` on `pending` and `failed`) and, when the provider supplies it, the `reference`. It is correlated by `(binding, refundId)`, then by `reference` as `RefundAttemptId`; tenant and order come from the refund-attempt record,
+  never from the payload. An uncorrelatable notification is not acknowledged (direct strategy) or parked (inbox strategy).
+- **Duplicate provider notifications and duplicate application requests MUST NOT create duplicate Order reversal facts.** Deduplication is by the stable
+  `RefundAttemptId` (§7), not by `eventId` and not by the provider `refundId`, which can be absent on a pending response.
+- A refund that can complete asynchronously requires `retrieveRefund`, which is mandatory in the port (an operation-level lookup, ADR-037 §5). Webhooks are
+  optional for refunds. Reconciliation polls every refund attempt in `pending` through `retrieveRefund`.
+- **Authority.** The application initiates and controls every money movement; refunds issued outside the application (for example from a provider
+  dashboard) are operationally forbidden and out of scope, because reconciliation cannot recover provider-originated events (ADR-037 §7, §9).
 
-### 7. Guaranteed by the abstraction versus provider-specific
+### 7. Planned Order reversal identity (design only; not implemented here)
+
+When `Order.recordReversal` ships, after this ADR is accepted and implemented, its record is planned to carry a **required, caller-supplied `reversalId`**
+that, for a refund, **equals the `RefundAttemptId`**:
+
+- an identical repeat of a recorded `reversalId` is an idempotent no-op;
+- the same `reversalId` with different content is a conflict (an additive Order reason, for example `reversal_conflict`);
+- otherwise the invariant `Σ reversals ≤ Σ captured` per `paymentId` and currency applies.
+
+Only a `succeeded` refund **with a valid, provider-confirmed amount** (from the result, `retrieveRefund` or a verified notification) is translated into a reversal. A pending refund,
+a failed refund and a `succeeded` refund with an unrepresentable amount never are. Whether a refund-attempt id or the
+provider `refundId` identifies a reversal is decided in favour of the refund-attempt id because it is known before the provider call and cannot be absent.
+This section is a design statement for the deferred ADR-032 Amendment 4 and the Commerce reversal design; **this ADR does not modify ADR-032, `Order`, or
+any Commerce document**.
+
+### 8. Errors
+
+No new reason is added beyond those of ADR-030 and ADR-037. Unknown `paymentId`, non-positive amount, currency mismatch detectable from the request alone,
+a malformed key, or an undeclared option (cause `unsupported`, for example a partial refund without `refund.partial` or a second refund without
+`refund.multiple`) are `invalid_request`; transport/provider infrastructure failures and unknown outcomes are `internal_error`. Provider business refusals
+(not refundable, window elapsed, already fully refunded) are `failed` outcomes.
+
+### 9. Guaranteed by the abstraction versus provider-specific
 
 | Guaranteed by the contract | Provider-specific (documented per adapter) |
 |---|---|
-| Request/outcome shape; positive amount; same currency; required key | Refund window and eligibility |
-| No duplicate refund for a repeated key (conformance obligation, ADR-030 §5) | Cumulative-limit enforcement and its error mapping |
-| Partial and full refunds expressed by amount only | Whether refunds settle synchronously (`succeeded`) or `pending` |
-| Refund references, never mutates, the payment | Fees, timing, payment-method restrictions, partial-refund support for a given method |
+| Request/outcome shape; positive amount; same currency; required key and `reference` | Refund window and eligibility |
+| No duplicate refund for a repeated key (conformance obligation, ADR-030 §7) | Cumulative-limit enforcement and its error mapping |
+| Partial and full refunds expressed by amount only; capability flags declare `partial`/`multiple` | Whether refunds settle synchronously (`succeeded`) or `pending` |
+| `retrieveRefund` is available whenever `refund` is | Fees, timing, payment-method restrictions, partial-refund support for a given method |
+| Refund references, never mutates, the payment | The provider's lookup reliability (to be verified for the selected PSP) |
+
+### 10. Production gate C4
+
+**Acceptance and implementation of this ADR (with ADR-030 and ADR-037) is the C4 gate**: it blocks refund **execution**, the implementation of
+`Order.recordReversal` and invoice reversal, and **retail general availability** (Commerce limitation L-7: "Retail GA without C4 → block, do not work
+around"). This ADR does not weaken that gate. Refund attempt records are persisted writes of money-related state and are additionally gated by C1
+(ADR-029).
+
+**First-store essentials** under this ADR: `refund` with full and partial amounts, per-refund idempotency, `retrieveRefund` (and/or refund notifications) to
+resolve `pending`, `refundId`, `RefundAttemptId` as the dedupe identity, and `Order.recordReversal` with reversal dedupe. **Broader capability, not
+required for the first store:** normalized failure reasons, refunds to a different method, dispute handling, fee reporting.
 
 ## Alternatives considered
 
@@ -127,23 +212,26 @@ refundable, window elapsed, already fully refunded) are `failed` outcomes.
 | Add `refunded` / `partially_refunded` to `PaymentStatus` | Contradicts the explicit vocabulary rule; a payment can have many refunds, which is not a single status |
 | Negative `Money` as a refund | `Money` is non-negative by design; changes a primitives-level invariant for one use case |
 | `full: boolean` flag | Second representation of the same fact; ambiguous if the remaining amount changed |
-| Final-states-only outcome (`succeeded | failed`) | Cannot be honest for asynchronous providers; would force adapters to block or lie |
+| Final-states-only outcome (`succeeded \| failed`) | Cannot be honest for asynchronous providers; would force adapters to block or lie |
+| Optional `retrieveRefund` | A `pending` refund could never be resolved |
 | Make Comity enforce the cumulative refund bound | Needs payment state Comity does not hold |
+| Deduplicate reversals by provider `refundId` or `eventId` | `refundId` can be absent on a pending response; `eventId` identifies a delivery, not a refund |
 | Include a Commerce `recordReversal` design here | Wrong layer; Commerce records facts from confirmed outcomes and is specified in its own architecture |
 
 ## Consequences
 
-**Positive:** refunds become portable and idempotent; `PaymentStatus` stays small; providers without refunds are unaffected; Commerce has a defined
-source for confirmed reversal facts.
+**Positive:** refunds become portable, idempotent and resolvable; `PaymentStatus` stays small; providers without refunds are unaffected; Commerce has a
+defined source for confirmed reversal facts and a duplicate-safe identity.
 
-**Negative:** one more port and outcome type; `pending` leaves final resolution to provider-specific means until a status/webhook decision exists;
-refundability by `paymentId` exposes the existing weakness that `PaymentOutcome.paymentId` is optional.
+**Negative:** one more port and outcome type; `RefundRequest.reference` becomes required, while the `reference` echoed on `RefundOutcome` stays optional
+(returned when the provider supplies it, and validated against the `RefundAttemptId` when present); applications must persist refund attempts with
+atomic uniqueness; the lookup requirement excludes providers without refund lookup (to be verified at PSP selection).
 
 ## Compatibility and migration
 
-Purely additive for existing code: a new optional contract, new types, no change to `PaymentProvider`, `PaymentRequest`, `PaymentOutcome` or
-`PaymentStatus`. It depends on ADR-030 for the key contract and on `idempotency_conflict`. No ADR-008 edge is added (`payment → pricing` already exists;
-`Instant` comes from `@comity/primitives`).
+Additive for existing code: a new optional contract and new types; no change to `PaymentStatus`. It depends on ADR-030 for the key contract and on
+`idempotency_conflict`, and on ADR-037 for the `OperationStatus` vocabulary, the binding descriptor and notifications. No ADR-008 edge is added
+(`payment → pricing` already exists; `Instant` comes from `@comity/primitives`).
 
 ## Affected packages and consumers
 
@@ -153,15 +241,19 @@ Purely additive for existing code: a new optional contract, new types, no change
 
 ## Relationship to existing ADRs
 
-ADR-030 (key contract reused); ADR-013 (Order owns its snapshots and does not import `@comity/payment`); ADR-020 / ADR-021 (refund workflows,
-including when and why to refund, belong to the application); `errors.md` §10 (additive reasons).
+ADR-030 (key contract reused for each refund); ADR-037 (`OperationStatus`, capability descriptor, `retrieveRefund` as operation-level lookup, refund
+notifications, reconciliation); ADR-029 (version-checked saves of refund attempts; unchanged); ADR-013 and ADR-032 (Order owns its snapshots and does not
+import `@comity/payment`; **ADR-032 is unchanged and its Amendment 4 stays deferred until `recordReversal` is implemented**); ADR-020 / ADR-021 (refund
+workflows, including when and why to refund, belong to the application); `errors.md` §10 (additive reasons).
+
+## Previously open questions
+
+1. *Resolving `pending`:* **resolved**: mandatory `retrieveRefund`, optional notification, mandatory reconciliation (§1, §6).
+2. *`PaymentOutcome.paymentId` optionality:* **resolved**: required for `authorized` and `captured` (ADR-037 §3).
+3. *Voiding an authorization:* **resolved** by ADR-037 (`PaymentCancelProvider`; a void is an operation producing payment state `cancelled`, not a refund).
 
 ## Unresolved questions
 
-1. **Resolving `pending`.** There is no status lookup or webhook abstraction. How does an application learn that a `pending` refund became `succeeded`
-   or `failed`? Needed before any workflow depends on asynchronous providers.
-2. **`PaymentOutcome.paymentId` optionality.** Refunds need it. Make it required for `authorized`/`captured` (a breaking, discriminated-type change),
-   or document that payments without it are not refundable?
-3. **Voiding an authorization** (`PaymentStatus: "cancelled"` has no operation that produces it). Separate decision.
-4. Whether `RefundOutcome` should expose a normalised failure reason. Currently none, matching `PaymentOutcome`.
-5. Whether refunds to a method different from the original are in scope (currently: no; the contract refunds the original payment).
+1. Whether `RefundOutcome` should expose a normalised failure reason. Currently none, matching `PaymentOutcome`. **Deferred.**
+2. Whether refunds to a method different from the original are in scope (currently: no; the contract refunds the original payment). **Deferred.**
+3. Whether the selected PSP provides reliable refund lookup (external dependency; a PSP without it is incompatible with this recovery model).

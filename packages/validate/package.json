@@ -35,16 +35,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@comity-dev/schemas": "workspace:^",
     "@comity-dev/dependency-rules": "workspace:^",
     "@comity-dev/eslint-plugin": "workspace:^",
+    "@comity-dev/schemas": "workspace:^",
     "@comity-dev/semgrep-rules": "workspace:^",
-    "@typescript-eslint/parser": "^8.69.0",
+    "@typescript-eslint/parser": "^8.72.1",
     "dependency-cruiser": "^16.10.4",
     "eslint": "^9.39.5",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3"
+    "@types/node": "^24.19.2"
   }
 }

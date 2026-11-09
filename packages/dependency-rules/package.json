@@ -37,8 +37,8 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "^24.13.3",
-    "dependency-cruiser": "^16.10.0",
+    "@types/node": "^24.19.2",
+    "dependency-cruiser": "^16.10.4",
     "typescript": "^5.9.3"
   }
 }

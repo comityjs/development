@@ -75,3 +75,106 @@ describe("comity-normalize-package-json: flat ESM export maps", () => {
     ]);
   });
 });
+
+describe("comity-normalize-package-json: dependency key ordering", () => {
+  let depWorkspace = "";
+
+  beforeAll(() => {
+    depWorkspace = mkdtempSync(join(tmpdir(), "comity-normalize-deps-"));
+    mkdirSync(join(depWorkspace, "packages", "dep-test"), { recursive: true });
+    writeFileSync(
+      join(depWorkspace, "packages", "dep-test", "package.json"),
+      JSON.stringify({
+        name: "@comity/dep-test",
+        version: "0.0.0",
+        type: "module",
+        peerDependencies: {
+          "@comity/acl": "workspace:^",
+          "@casl/ability": "^7.0.0",
+          "zod": "^3.0.0",
+          "alpha-pkg": "^1.0.0",
+        },
+        dependencies: {
+          "@comity/primitives": "workspace:^",
+          "@other/scoped": "^2.0.0",
+          "lodash": "^4.0.0",
+          "beta-dep": "^1.0.0",
+        },
+        devDependencies: {
+          "@comity/cli": "workspace:^",
+          "@types/node": "^20.0.0",
+          "typescript": "^5.0.0",
+          "vitest": "^1.0.0",
+        },
+        optionalDependencies: {
+          "@comity/optional": "workspace:^",
+          "@external/opt": "^1.0.0",
+          "optional-pkg": "^1.0.0",
+        },
+      }),
+    );
+  });
+
+  afterAll(() => {
+    if (depWorkspace !== "") rmSync(depWorkspace, { recursive: true, force: true });
+  });
+
+  it("sorts peerDependencies alphabetically", () => {
+    const run = spawnSync(
+      process.execPath,
+      [BINARY, "--repo-root", depWorkspace],
+      { cwd: depWorkspace, encoding: "utf8" },
+    );
+
+    expect(run.status).toBe(0);
+
+    const manifest = JSON.parse(
+      readFileSync(join(depWorkspace, "packages", "dep-test", "package.json"), "utf8"),
+    ) as { peerDependencies: Record<string, string> };
+
+    expect(Object.keys(manifest.peerDependencies)).toEqual([
+      "@casl/ability",
+      "@comity/acl",
+      "alpha-pkg",
+      "zod",
+    ]);
+  });
+
+  it("sorts dependencies alphabetically", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(depWorkspace, "packages", "dep-test", "package.json"), "utf8"),
+    ) as { dependencies: Record<string, string> };
+
+    expect(Object.keys(manifest.dependencies)).toEqual([
+      "@comity/primitives",
+      "@other/scoped",
+      "beta-dep",
+      "lodash",
+    ]);
+  });
+
+  it("sorts devDependencies alphabetically", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(depWorkspace, "packages", "dep-test", "package.json"), "utf8"),
+    ) as { devDependencies: Record<string, string> };
+
+    expect(Object.keys(manifest.devDependencies)).toEqual([
+      "@comity/cli",
+      "@types/node",
+      "typescript",
+      "vitest",
+    ]);
+  });
+
+  it("sorts optionalDependencies alphabetically", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(depWorkspace, "packages", "dep-test", "package.json"), "utf8"),
+    ) as { optionalDependencies: Record<string, string> };
+
+    expect(Object.keys(manifest.optionalDependencies)).toEqual([
+      "@comity/optional",
+      "@external/opt",
+      "optional-pkg",
+    ]);
+  });
+});

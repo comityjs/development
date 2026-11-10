@@ -67,26 +67,9 @@ function sortDependencies(
 ): Record<string, string> {
   if (!deps || typeof deps !== "object") return {};
 
-  const comity: Record<string, string> = {};
-  const scoped: Record<string, string> = {};
-  const unscoped: Record<string, string> = {};
-
-  for (const [key, value] of Object.entries(deps)) {
-    if (key.startsWith("@comity/")) {
-      comity[key] = value;
-    } else if (key.startsWith("@")) {
-      scoped[key] = value;
-    } else {
-      unscoped[key] = value;
-    }
-  }
-
-  const sortObj = (obj: Record<string, string>) =>
-    Object.fromEntries(
-      Object.entries(obj).sort(([a], [b]) => a.localeCompare(b)),
-    );
-
-  return { ...sortObj(comity), ...sortObj(scoped), ...sortObj(unscoped) };
+  return Object.fromEntries(
+    Object.entries(deps).sort(([a], [b]) => a.localeCompare(b)),
+  );
 }
 
 function sortKeywords(keywords: string[] | undefined): string[] {

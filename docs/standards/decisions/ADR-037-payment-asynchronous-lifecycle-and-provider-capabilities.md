@@ -6,6 +6,8 @@
 > - Companion ADRs: ADR-030 (command idempotency, revised in place), ADR-031 (refunds, revised in place)
 > - **Amended by the owner-approved decision OD-F9 (amount representability).** §3 and §8b record the requested / provider-reported / provider-confirmed distinction, the
 >   no-echo rule, the `ReportedAmount` representation and the `unrepresentable_success` reason with typed details. Status and every other decision of this ADR are unchanged.
+> - **Amended by the owner-approved decision OD-F10 (resolution of incomplete asynchronous attempts).** §5 adds the `incompleteResolution` descriptor field and rule C-11; §6 records the
+>   authoritative cancellation and expiry resolution sequences. Status and every other decision of this ADR are unchanged (rules C-1 to C-10, P5, A1 to A4 and W-1 to W-7 included).
 
 **Status:** Accepted
 
@@ -282,6 +284,11 @@ export interface PaymentCapabilities {
   readonly manualCapture: false | { readonly asynchronous: boolean };
   readonly cancel: false | { readonly incomplete: boolean; readonly authorized: boolean; readonly asynchronous: boolean };
   readonly refund: false | { readonly partial: boolean; readonly multiple: boolean; readonly asynchronous: boolean };
+  /** How an incomplete (pending / requires_action) payment can be authoritatively resolved (OD-F10, C-11). */
+  readonly incompleteResolution:
+    | false                                                         // no mechanism declared
+    | { readonly kind: "cancel" }                                   // a cancellation path can authoritatively resolve it (cancel.incomplete)
+    | { readonly kind: "expiry"; readonly maxSeconds: number };     // documented provider deadline; lookup then exposes the terminal state
   readonly idempotencyRetentionSeconds: number;                     // ADR-030; > 0
 }
 
@@ -300,8 +307,9 @@ export interface PaymentProviderBinding {
 export declare function validatePaymentProviderBinding(b: PaymentProviderBinding): Result<void, PaymentError>; // "invalid_configuration"
 ```
 
-The payment service token resolves the **binding**. The pure validator runs at composition and returns every violated rule. A binding that violates any rule
-**cannot be composed**. The rules are:
+The payment service token resolves the **binding**. The pure validator runs at composition and returns every violated **static** rule. A binding that violates a
+static rule **cannot be composed**. The rules below are C-1 to C-11; **C-1 to C-9 and C-11 are static** (checkable from the descriptor and the binding's ports alone) and are enforced by
+the validator, whereas **C-10 is not static** (and C-11 is static but must be substantiated by PSP evidence, below): it constrains the runtime shape of results and notifications and is enforced by adapter conformance (classification below). The rules are:
 
 | Rule | Condition | Rationale |
 |---|---|---|
@@ -315,6 +323,35 @@ The payment service token resolves the **binding**. The pure validator runs at c
 | C-8 | `idempotencyRetentionSeconds > 0` | ADR-030: a provider without native idempotency cannot implement `PaymentProvider` |
 | C-9 | `customerActions` ⊆ `PaymentAction["kind"]` | Closed union |
 | C-10 | A `PaymentOperationOutcome` with status `pending` carries `operationId`, and every `operation` notification carries `operationId` (conformance rule, checked by the adapter conformance suite) | Without an identity an operation can neither be looked up nor correlated |
+| C-11 | `asynchronousInitiation ⇒ incompleteResolution ≠ false`. `incompleteResolution.kind = "cancel"` ⇒ `cancel.incomplete` is true. `kind = "expiry"` ⇒ `maxSeconds` is a finite number > 0, equal to the provider's **documented** terminal-expiry deadline (never an application-selected timeout or an estimate) | An asynchronous initiation can be abandoned; without a declared authoritative resolution path an attempt can stay unresolved indefinitely and block P5 (OD-F10) |
+
+**Enforcement classification (clarification; no rule is changed).** Static validation proves that a binding is *declared* consistently; it cannot prove that an adapter *behaves* as
+declared. Each requirement is therefore classified separately:
+
+| Rule | Static binding validation (`validatePaymentProviderBinding`) | Adapter conformance (executed against the adapter) | Runtime invariant |
+|---|---|---|---|
+| C-1 to C-9 | **Yes**: descriptor and port presence only | The declared behaviour is real (for example a declared `statusLookup` actually answers; a declared `refund.partial` accepts a partial refund) | The adapter does not exceed its declaration; an undeclared option is `invalid_request`, cause `unsupported` ("Request-time detection") |
+| C-8 | `idempotencyRetentionSeconds > 0` | Not testable without waiting out the window; the value is the adapter's **documented** claim, verified against the PSP at selection | Callers rely on it only within the window (ADR-030 §4) |
+| C-11 | **Yes**: structural validity of the declaration | The declared mechanism behaves as declared (below) | Resolution only from authoritative evidence (§6) |
+| **C-10** | **No.** The validator sees no results or notifications | **Yes, mandatory**: observable result and notification shape (below) | **Yes**: every real `pending` operation result and `operation` notification must satisfy it. A violation is an adapter defect, not a configuration error |
+
+**C-10 conformance tests** (observable behaviour only, through the public ports, using recorded or faked provider responses so that no test depends on elapsed wall-clock time):
+a `pending` capture result and a `pending` cancel result each carry a non-empty `operationId`; two pending operations on the same payment carry different `operationId`s; every normalized
+`operation` notification carries a non-empty `operationId` equal to the one returned by the command; `retrieveOperation(operationId)` returns the operation it identifies (and `null` for an
+unknown id); and an adapter that declares `manualCapture.asynchronous` or `cancel.asynchronous` provides all of the above. The suite is exported by `@comity/payment` (see Affected
+packages) and is a conformance obligation of every Payment technology adapter, alongside the idempotency table (ADR-030 §7). It is **distinct from** the validator: passing validation never
+implies conformance, and conformance never replaces validation. An adapter that fails C-10 is **not conformant**: it MUST NOT be used for asynchronous capture or cancel, and must declare those
+operations synchronous-only or not declare them (as for a missing reliable completion mechanism, below). This ADR prescribes no reporting framework: the result is the suite's pass or fail
+outcome per rule, and the adapter's documentation records it.
+
+**C-11 and PSP evidence.** Static validation verifies that an asynchronous initiation declares a mechanism, that the mechanism is structurally valid, that `cancel` is declared when cancellation is
+selected, and that `maxSeconds` is finite and positive when expiry is selected. It **cannot** prove that the PSP honours the declaration. `cancel.incomplete: true` declares only that the
+provider can complete the cancellation path; it is **not** a guarantee that a cancellation succeeds. Provider-specific verification stays in the existing PSP selection and production acceptance
+process (no evidence registry or verification framework is introduced). Required documented provider evidence:
+
+- **Expiry:** the meaning and starting point of the deadline; that after it the payment cannot complete or produce a financial effect; that lookup (`retrieve`) exposes the corresponding terminal
+  state; and the conditions and exceptions that apply.
+- **Cancel:** that a successful cancellation outcome (a `succeeded` cancel operation, or lookup showing `cancelled`) is authoritative and prevents subsequent payment completion or financial effect.
 
 **Why asynchronous operations need a reliable completion mechanism.** Looking up only the payment state answers "has the effect happened?", and only while no
 other operation is in flight. A pending capture and a failed capture both leave the payment `authorized`. A failed capture followed by a later successful
@@ -403,8 +440,19 @@ A retry of the same request reuses the same `PaymentAttemptId` and therefore the
 write ordering plus reconciliation makes every intermediate state recoverable. In-memory stores and the advisory `version` of Order provide none of these
 guarantees across processes.
 
-**Consequence for customer retry.** After an abandoned redirect, a new attempt is possible only if the provider can cancel incomplete payments
-(`cancel.incomplete`) or expires them on a bounded, observable schedule. This is a PSP selection criterion.
+**Resolving an incomplete attempt (OD-F10, C-11).** After an abandoned redirect, a new attempt is possible only once the previous attempt is resolved (P5), and only authoritative evidence
+resolves it. **Local elapsed time is never evidence.** The application MUST NOT resolve an attempt because a local timeout expires, `maxSeconds` elapses, the customer returns from a redirect, the
+Order is cancelled, or a notification has not arrived. Elapsed time only determines **when the application attempts reconciliation**.
+
+- **Expiry-based binding (`kind: "expiry"`).** (1) The provider's documented deadline passes. (2) The application performs an authoritative payment lookup through the existing `retrieve`. (3) The
+  adapter maps the provider's response to a payment state (§2 rule 6). (4) **Only a terminal state** (`failed` or `cancelled`, or a settled success) resolves the attempt. If the lookup still reports
+  `pending`, `requires_action` or another non-terminal state, the attempt **remains unresolved**; a failed lookup, missing response, timeout or inconclusive result **never** resolves it. P5 keeps
+  blocking new attempts throughout.
+- **Cancellation-based binding (`kind: "cancel"`).** A cancellation request alone is insufficient. A `succeeded` cancel operation result, or an authoritative lookup showing `cancelled`, may resolve the
+  attempt under the existing cancellation contract. A pending, failed, incomplete or unknown cancellation result does not establish terminal cancellation; asynchronous cancellation keeps its
+  `retrieveOperation` requirement (C-4).
+- **Notification-only resolution is not guaranteed**: notifications can be missed (§7), so they never replace lookup or cancellation evidence.
+- **Fallback.** An attempt that cannot otherwise be resolved stays unresolved, and is handled by an alert and attributed manual reconciliation (above). No new state or error reason is used.
 
 ### 7. Notifications, webhooks and reconciliation
 
@@ -780,7 +828,7 @@ This ADR is consistent with, and assumes, three corrections tracked as follow-up
 ## Unresolved questions
 
 1. **PSP selection and verification** of W-1 to W-4, native idempotency retention, hosted redirect support and cancellation of incomplete payments (or a
-   bounded observable expiry). External dependency; decides direct processing versus an inbox.
+   documented terminal expiry, C-11). External dependency; decides direct processing versus an inbox.
 2. **Adapter dependency on `@comity/pricing`: resolved** by §8a (injected factory; no runtime Pricing dependency in Payment technology adapters).
 3. **Signalling of confirmed success with unrepresentable financial data (§8b): resolved by OD-F9** (owner-approved): the `unrepresentable_success` reason with typed details, and the
    `ReportedAmount` representation with the no-echo rule for payment, operation and refund outcomes (§3). Remaining and PSP-dependent: whether a per-event `verify` result is needed

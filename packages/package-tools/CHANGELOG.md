@@ -1,5 +1,11 @@
 # @comity-dev/package-tools
 
+## 0.2.2
+
+### Patch Changes
+
+- 764d1ab: simplify dependency sorting logic
+
 ## 0.2.1
 
 ### Patch Changes

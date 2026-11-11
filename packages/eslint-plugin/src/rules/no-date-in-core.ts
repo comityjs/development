@@ -17,6 +17,8 @@
  *   - domain-modeling.md
  */
 
+import { appliesToDeterministicLayer, LAYER_SCOPE_SCHEMA_PROPERTIES } from "./layer-scope.js";
+
 type Rule = unknown;
 
 const FORBIDDEN_GLOBALS = new Set(["Date", "performance"]);
@@ -111,13 +113,7 @@ const rule: Rule = {
     schema: [
       {
         type: "object",
-        properties: {
-          sourceName: {
-            type: "string",
-            description:
-              "Name of the source package (e.g., '@comity/http'). Used to scope the rule.",
-          },
-        },
+        properties: LAYER_SCOPE_SCHEMA_PROPERTIES,
         additionalProperties: false,
       },
     ],
@@ -126,15 +122,15 @@ const rule: Rule = {
   create(context: any) {
     const opts = (context.options[0] ?? {}) as {
       sourceName?: string;
+      classification?: Record<string, unknown>;
     };
     const sourceName = opts.sourceName ?? null;
     const filename = context.filename ?? context.getFilename();
 
-    // If sourceName provided, use it for classification; otherwise fall back to filename
-    const inCoreOrKernel = sourceName
-      ? sourceName.startsWith("@comity/") &&
-        !["@comity/cli", "@comity/graphql-builder"].includes(sourceName) // these are not core/kernel
-      : isInCoreOrKernelPackage(filename);
+    // Scope by the package's declared layer (see layer-scope.ts), never by the `@comity/*` prefix.
+    const inCoreOrKernel = appliesToDeterministicLayer(opts, () =>
+      isInCoreOrKernelPackage(filename),
+    );
 
     // Disable this rule outside Core/Kernel packages
     if (!inCoreOrKernel) {

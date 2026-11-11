@@ -18,6 +18,36 @@ Seven rules, each addressing a Comity-wide concern:
 | `no-render-core-http-runtime` | Forbid render Core Modules from depending on HTTP runtime.                                                                                    |
 | `require-internal-marker`     | Require an `@internal` JSDoc tag on production sources under `src/internal/` and `src/lazy/` (owner-approved Contract B).                     |
 
+### `no-layer-violation` options
+
+`sourceName` and `classification` are required. For Technology Adapters the consumer also supplies
+`implements` (the Core Module the adapter implements) and, optionally, `consumes` (a map from
+package name to the additional **Core Module** contracts the adapter consumes, `adapters.md` §13).
+Only targets classified `core` are admitted through `implements` or `consumes`; an adapter, an
+Integration Adapter or any other layer is never admitted, and no option exempts a layer. A
+consumer derives `consumes` from the adapter's own manifest declarations; without it the rule
+admits only the implemented Core Module. The optional `development` option (package name → the
+Comity packages it declares as `devDependencies`) lets **test sources** of a Technology Adapter
+(`__tests__`, `*.test.*`, `*.spec.*`) import those packages, for example a sibling SQL binding used
+as an integration-test fixture; such imports never enter the published dependency graph, and
+production sources never benefit from it.
+
+### `no-date-in-core` and `no-crypto-in-core` options
+
+Both rules scope by the package's **declared layer**, never by the `@comity/*` name prefix (a
+Technology Adapter such as `@comity/sql-kysely` is a `@comity/*` package that legitimately touches
+clocks, randomness and cryptography). They accept the same `sourceName` and `classification` as
+`no-layer-violation`:
+
+- `classification` supplied: the layer is `classification[sourceName]`. The rules apply to
+  `primitives`, `kernel`, `composition` and `core`, and not to `technology-adapter`,
+  `integration-adapter` or any other layer.
+- Missing or invalid metadata (no `sourceName`, a source package absent from `classification`, a
+  non-string layer, an empty classification) means the layer is unknown and the rule does not apply,
+  as for `no-layer-violation`.
+- `classification` not supplied: the rule falls back to its filename heuristic, as it always did
+  without `sourceName`. `sourceName` alone no longer classifies a package.
+
 ## Ownership
 
 Owned by `comity-development`. Consumed by Comity repositories (Community, Enterprise) via ESLint flat config.

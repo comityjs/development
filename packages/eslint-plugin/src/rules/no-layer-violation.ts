@@ -16,12 +16,25 @@
  *                           invariant)
  *   - core                → primitives, kernel, composition, core
  *                           (Core → Core is further gated by ADR-008, not by this rule)
- *   - technology-adapter  → primitives, kernel, composition, and the Core Module it
- *                           implements
+ *   - technology-adapter  → primitives, kernel, composition, the Core Module it
+ *                           implements, and the additional Core Modules it consumes
+ *                           (adapters.md §13; see below)
  *   - integration-adapter → primitives, kernel, core, technology-adapter
  *
  * Technology Adapters MAY import the core contract they implement (declared via
- * `implements` metadata).
+ * `implements` metadata) and the additional Core Module contracts they consume
+ * (declared via the `consumes` option, ADR-007 / adapters.md §13: "An adapter MAY depend on
+ * additional Core Modules when those dependencies are required by its implementation").
+ * `consumes` is data supplied by the consumer, like `classification` and `implements`; the
+ * consumer derives it from the adapter's own manifest declarations. Only targets classified as
+ * `core` are ever admitted this way: it does not turn a Technology Adapter into an Integration
+ * Adapter, and it never admits an adapter, an Integration Adapter or any other layer.
+ *
+ * Test sources of a Technology Adapter MAY additionally import the Comity packages the adapter
+ * declares as `devDependencies` (the `development` option): technology bindings such as another
+ * SQL adapter are legitimate integration-test fixtures, and a development-only import never enters
+ * the published dependency graph that the layering policy governs. Production sources never
+ * benefit from it; a test file is recognised by its path (`__tests__`, `.test.`, `.spec.`).
  *
  * A source package whose layer has no profile (for example `dev-tooling`), and a target
  * that is not in the supplied classification, are outside this rule's scope. The
@@ -163,6 +176,18 @@ const rule: Rule = {
             description:
               "Map of package name → implemented core package (for technology-adapter packages).",
           },
+          development: {
+            type: "object",
+            description:
+              "Map of package name → Comity packages it declares as devDependencies. Imports of them from test sources of a technology-adapter are outside the layering policy (they never enter the published graph).",
+            additionalProperties: { type: "array", items: { type: "string" } },
+          },
+          consumes: {
+            type: "object",
+            description:
+              "Map of package name → additional Core Module packages the package consumes (for technology-adapter packages, adapters.md §13). Only Core-layer targets are admitted.",
+            additionalProperties: { type: "array", items: { type: "string" } },
+          },
         },
         required: ["sourceName", "classification"],
         additionalProperties: false,
@@ -175,9 +200,16 @@ const rule: Rule = {
       sourceName?: string;
       classification?: Record<string, string>;
       implements?: Record<string, string>;
+      consumes?: Record<string, readonly string[]>;
+      development?: Record<string, readonly string[]>;
     };
     const classification = opts.classification ?? {};
     const implementsMap = opts.implements ?? {};
+    const consumesMap = opts.consumes ?? {};
+    const developmentMap = opts.development ?? {};
+    const filename = (context.filename ?? context.getFilename() ?? "").replace(/\\/g, "/");
+    const isTestSource =
+      /(?:^|\/)__tests__\//.test(filename) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(filename);
     const sourceName = opts.sourceName ?? null;
 
     // Fallback: infer source layer from filename if sourceName not provided
@@ -203,14 +235,26 @@ const rule: Rule = {
         const targetLayer = classification[target];
         if (!targetLayer) return; // unknown package — outside this rule's scope
 
-        // Allow technology-adapter to import its implemented core contract
+        // Allow a technology-adapter to import its implemented core contract and the
+        // additional Core Module contracts it consumes (adapters.md §13). Core layer only.
         if (
           effectiveSourceName &&
           sourceLayer === "technology-adapter" &&
           targetLayer === "core" &&
-          implementsMap[effectiveSourceName] === target
+          (implementsMap[effectiveSourceName] === target ||
+            (consumesMap[effectiveSourceName] ?? []).includes(target))
         ) {
-          return; // Allowed: adapter implements this core contract
+          return; // Allowed: implemented or consumed Core Module contract
+        }
+
+        // Test sources of a technology-adapter may import its declared devDependencies.
+        if (
+          effectiveSourceName &&
+          sourceLayer === "technology-adapter" &&
+          isTestSource &&
+          (developmentMap[effectiveSourceName] ?? []).includes(target)
+        ) {
+          return;
         }
 
         if (!profile.allowed.has(targetLayer)) {

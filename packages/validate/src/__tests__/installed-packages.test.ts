@@ -13,6 +13,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   classifyInstalledComityPackages,
   comityPackageOf,
+  describeUndeclaredPackage,
 } from "../installed-packages.js";
 
 const roots: string[] = [];
@@ -204,5 +205,55 @@ describe("comityPackageOf", () => {
     "@comity/",
   ])("%s is not a Comity package", (target) => {
     expect(comityPackageOf(target)).toBeNull();
+  });
+});
+
+describe("describeUndeclaredPackage", () => {
+  const root = (): string => {
+    const r = mkdtempSync(join(tmpdir(), "comity-undeclared-"));
+
+    roots.push(r);
+
+    return r;
+  };
+
+  it("a classifiable but undeclared package: says so, with its version and layer (declaration ≠ classification)", () => {
+    const r = root();
+
+    install(r, "@comity/billing", { name: "@comity/billing", version: "2.3.4", comity: { layer: "core" } });
+
+    expect(
+      describeUndeclaredPackage(r, "node_modules/@comity/billing/dist/index.js", "@comity/billing"),
+    ).toBe(
+      'it is installed (version 2.3.4, layer "core") but not declared as a dependency of any workspace package',
+    );
+  });
+
+  it("reads the manifest of the RESOLVED package: pnpm virtual store and subpaths alike", () => {
+    const r = root();
+    const store = "node_modules/.pnpm/@comity+billing@1.0.0/node_modules/@comity/billing";
+
+    install(r, "@comity/billing", { name: "@comity/billing", version: "1.0.0", comity: { layer: "integration-adapter" } }, join(r, store));
+
+    expect(describeUndeclaredPackage(r, `${store}/dist/errors/index.js`, "@comity/billing")).toContain(
+      'layer "integration-adapter"',
+    );
+  });
+
+  it("an undeclared package that is also unclassifiable reports the manifest problem and the missing declaration", () => {
+    const r = root();
+
+    install(r, "@comity/plain", { name: "@comity/plain", version: "0.1.0" });
+
+    const message = describeUndeclaredPackage(r, "node_modules/@comity/plain/index.js", "@comity/plain");
+
+    expect(message).toContain("declares no `comity.layer`");
+    expect(message).toContain("not declared as a dependency of any workspace package");
+  });
+
+  it("an unresolved specifier has no installed manifest to read", () => {
+    expect(describeUndeclaredPackage(root(), "@comity/ghost/sub", "@comity/ghost")).toBe(
+      "it could not be resolved and is not declared as a dependency of any workspace package",
+    );
   });
 });

@@ -509,14 +509,15 @@ export function buildDependencyRules(
   // layer rules above already report an unresolved specifier of any package the
   // source layer may NOT depend on (their catch-all). This rule reports the
   // rest: an unresolved specifier of a package the layer MAY depend on, which
-  // would otherwise pass silently. Adapters have no catch-all, so every
-  // unresolved Comity specifier of an adapter is covered here.
-  const mustResolve = (sources: string[], allowed: string[] | null): void => {
+  // would otherwise pass silently. An adapter has no layer catch-all; an
+  // unresolved specifier of a package it does not know is reported by
+  // `comity-package-must-be-classified` below, so this covers known names only.
+  const mustResolve = (sources: string[], allowed: string[]): void => {
     const from = workspaceOnly(sources);
 
     if (from.length === 0) return;
 
-    if (allowed !== null && allowed.length === 0) return;
+    if (allowed.length === 0) return;
 
     forbidden.push({
       name: "comity-import-must-resolve",
@@ -525,10 +526,7 @@ export function buildDependencyRules(
         "A Comity package import could not be resolved, so its layer cannot be verified: the package is not installed, the subpath is not exported by the package's `exports` map, or a workspace package is not built. Install and build before validating.",
       from: fromPackages(from),
       to: {
-        path:
-          allowed === null
-            ? INTERNAL_SPECIFIER
-            : `^(?:${unique(allowed).map(escapeForRegex).join("|")})(?:/|$)`,
+        path: `^(?:${unique(allowed).map(escapeForRegex).join("|")})(?:/|$)`,
         couldNotResolve: true,
       },
     });
@@ -538,7 +536,30 @@ export function buildDependencyRules(
   mustResolve(kernel, [...primitives, ...kernel]);
   mustResolve(composition, [...primitives, ...kernel, ...composition]);
   mustResolve(core, [...primitives, ...kernel, ...composition, ...core]);
-  mustResolve(adapters, null);
+  mustResolve(adapters, internalNames);
+
+  // Adapters have no layer catch-all (their rules name specific targets), so a
+  // Comity package an adapter imports that is not known would escape every rule
+  // above. "Known" is a workspace package or a classified installed package. An
+  // installed package that no workspace package declares, whose manifest has no
+  // valid `comity.layer`, or that cannot be resolved is therefore rejected, with
+  // all of the adapter's files governed (tests included). Only Comity scopes are
+  // matched: other third-party packages are not this rule's concern.
+  const adapterSources = workspaceOnly(adapters);
+
+  if (adapterSources.length > 0) {
+    forbidden.push({
+      name: "comity-package-must-be-classified",
+      severity: "error",
+      comment:
+        "Every Comity package an adapter imports must be classified: a workspace package, or an installed package that a workspace package declares and whose installed manifest carries a valid `comity.layer`. This one is undeclared, unclassifiable or not installed.",
+      from: fromPackages(adapterSources),
+      to: {
+        path: `${INTERNAL_SPECIFIER}|${INSTALLED_COMITY_PATH}`,
+        pathNot: toPackages(internalNames),
+      },
+    });
+  }
 
   return {
     forbidden,

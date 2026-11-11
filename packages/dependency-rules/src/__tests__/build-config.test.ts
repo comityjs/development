@@ -419,10 +419,11 @@ describe("comity-import-must-resolve", () => {
     expect(new RegExp(core!.to.path).test("@comity/mystery")).toBe(false);
   });
 
-  it("an adapter has no catch-all, so every unresolved Comity specifier is covered", () => {
+  it("an adapter's must-resolve rule covers KNOWN names only; unknown ones belong to comity-package-must-be-classified", () => {
     const [adapter] = forSource("packages/sql-kysely");
 
-    expect(new RegExp(adapter!.to.path).test("@comity/anything/at-all")).toBe(true);
+    expect(new RegExp(adapter!.to.path).test("@comity/primitives/hidden")).toBe(true);
+    expect(new RegExp(adapter!.to.path).test("@comity/anything-else")).toBe(false);
     expect(new RegExp(adapter!.to.path).test("zod")).toBe(false);
   });
 });
@@ -499,5 +500,103 @@ describe("no-cross-adapter-deps: test-only exception structure", () => {
 
   it("an installed adapter is never a rule source", () => {
     expect(cfg.forbidden.some((r) => /sql-kysely/.test(r.from.path))).toBe(false);
+  });
+});
+
+describe("comity-package-must-be-classified (adapter sources)", () => {
+  const cls = new Map<string, string>([
+    ["@comity/order-sql", "technology-adapter"],
+    ["@comity/shop", "integration-adapter"],
+    ["@comity/entitlement", "core"],
+    ["@comity/sql", "core"],
+    ["@comity/sql-kysely", "technology-adapter"],
+  ]);
+  const cfg = buildDependencyRules(cls, {
+    packagePaths: {
+      "@comity/order-sql": "adapters/order-sql",
+      "@comity/shop": "adapters/shop",
+      "@comity/entitlement": "packages/entitlement",
+      "@comity/plain-workspace": "packages/plain",
+    },
+    installedPackages: ["@comity/sql", "@comity/sql-kysely"],
+  });
+  const [rule] = cfg.forbidden.filter((r) => r.name === "comity-package-must-be-classified");
+  const hit = (to: string): boolean =>
+    new RegExp(rule!.to.path).test(to) &&
+    !new RegExp(rule!.to.pathNot!).test(to);
+  const pnpm = (name: string): string =>
+    `node_modules/.pnpm/${name.replace("/", "+")}@1.0.0/node_modules/${name}/dist/index.js`;
+
+  it("is a single rule whose sources are every adapter file, tests included, and no other package", () => {
+    expect(cfg.forbidden.filter((r) => r.name === "comity-package-must-be-classified")).toHaveLength(1);
+
+    const from = (f: string): boolean =>
+      new RegExp(rule!.from.path).test(f) && !new RegExp(rule!.from.pathNot!).test(f);
+
+    expect(from("adapters/order-sql/src/a.ts")).toBe(true);
+    expect(from("adapters/order-sql/src/__tests__/a.test.ts")).toBe(true);
+    expect(from("adapters/shop/src/a.ts")).toBe(true);
+    expect(from("packages/entitlement/src/a.ts")).toBe(false);
+    expect(from("adapters/order-sql/dist/a.js")).toBe(false);
+  });
+
+  it("rejects an unknown Comity package: resolved (hoisted, pnpm) or unresolved, root or subpath", () => {
+    for (const to of [
+      "node_modules/@comity/billing/dist/index.js",
+      pnpm("@comity/billing"),
+      "@comity/billing",
+      "@comity/billing/errors",
+      "@comity-dev/validate",
+      pnpm("@comity-dev/validate"),
+    ]) {
+      expect(hit(to)).toBe(true);
+    }
+  });
+
+  it("accepts every known package: workspace (even without a layer) and classified installed, root and subpath", () => {
+    for (const to of [
+      "adapters/shop/src/index.ts",
+      "packages/plain/src/index.ts",
+      "@comity/plain-workspace",
+      "node_modules/@comity/sql/dist/index.js",
+      pnpm("@comity/sql"),
+      pnpm("@comity/sql-kysely"),
+      "@comity/sql/errors",
+    ]) {
+      expect(hit(to)).toBe(false);
+    }
+  });
+
+  it("does not touch non-Comity packages or look-alike scopes", () => {
+    for (const to of ["zod", "node_modules/zod/index.js", "@comityx/lib", "node_modules/@comityx/a/index.js", "@other/thing", "node:fs"]) {
+      expect(hit(to)).toBe(false);
+    }
+  });
+
+  it("a name that merely starts like a known one is still unknown", () => {
+    expect(hit("@comity/sql-kysely-extra")).toBe(true);
+    expect(hit("node_modules/@comity/sql-extra/index.js")).toBe(true);
+  });
+
+  it("is not emitted without a workspace adapter, and never has an installed package as its source", () => {
+    const none = buildDependencyRules(new Map([["@comity/sql-kysely", "technology-adapter"], ["@comity/entitlement", "core"]]), {
+      packagePaths: { "@comity/entitlement": "packages/entitlement" },
+      installedPackages: ["@comity/sql-kysely"],
+    });
+
+    expect(none.forbidden.some((r) => r.name === "comity-package-must-be-classified")).toBe(false);
+  });
+
+  it("never duplicates a must-resolve finding: the two rules' unresolved targets are disjoint", () => {
+    const [mustResolve] = cfg.forbidden.filter(
+      (r) => r.name === "comity-import-must-resolve" && /adapters\/order-sql/.test(r.from.path),
+    );
+
+    for (const spec of ["@comity/sql/hidden", "@comity/billing", "@comity/plain-workspace/x"]) {
+      const resolvable = new RegExp(mustResolve!.to.path).test(spec);
+      const classified = hit(spec);
+
+      expect(resolvable !== classified).toBe(true);
+    }
   });
 });

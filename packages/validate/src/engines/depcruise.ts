@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 import {
   classifyInstalledComityPackages,
   comityPackageOf,
+  describeUndeclaredPackage,
 } from "../installed-packages.js";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -450,7 +451,7 @@ export function runDepcruise(
         installed.problems.get(name) ??
         (workspaceNames.has(name)
           ? "the workspace package declares no valid `comity.layer`"
-          : "it is not declared as a dependency of any workspace package, so no installed manifest was read");
+          : describeUndeclaredPackage(repo.root, target, name));
 
       return ` [${name} is not classified: ${reason}]`;
     };

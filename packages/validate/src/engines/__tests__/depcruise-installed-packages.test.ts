@@ -558,7 +558,7 @@ describe("E. unknown, unclassified and malformed Comity packages never pass sile
 
     expect(category).toMatchObject({ status: "FAIL" });
     expect(violations.map((v) => v.message).join("\n")).toContain(
-      "@comity/never-installed is not classified: it is not declared as a dependency",
+      "@comity/never-installed is not classified: it could not be resolved and is not declared as a dependency of any workspace package",
     );
   });
 
@@ -894,5 +894,300 @@ describe("G2. Core-to-Core semantics are unchanged; Core → adapter stays forbi
     expect(violations.map((v) => v.rule)).toContain(
       "DEP-contracts-never-depend-on-adapters",
     );
+  });
+});
+
+// ── H. every Comity import of an adapter is classified or rejected ─────
+
+describe("H. adapter sources: Comity imports are classified or rejected, never silently accepted", () => {
+  const rules = (v: Array<{ rule: string }>): string[] => v.map((x) => x.rule);
+  const messages = (v: Array<{ message: string }>): string =>
+    v.map((x) => x.message).join("\n");
+
+  /** A technology adapter whose only declared dependencies are `declared`. */
+  const techAdapter = (
+    files: Record<string, string>,
+    declared: string[],
+    installed: Installed[],
+    extra: Workspace[] = [],
+  ): string =>
+    fixture({
+      workspaces: [
+        {
+          name: "@comity/order-sql",
+          layer: "technology-adapter",
+          files,
+          manifest: {
+            peerDependencies: Object.fromEntries(declared.map((d) => [d, "1.0.0"])),
+            devDependencies: Object.fromEntries(declared.map((d) => [d, "1.0.0"])),
+          },
+        },
+        ...extra,
+      ],
+      installed,
+    });
+
+  const UNDECLARED_CORE: Installed = {
+    name: "@comity/billing",
+    comity: { layer: "core" },
+  };
+
+  describe("undeclared installed Comity package (resolvable, correctly classified in its own manifest)", () => {
+    it("technology adapter, production source, hoisted layout → FAIL with an undeclared diagnostic", async () => {
+      const root = techAdapter(
+        { "src/repo.ts": imp("@comity/billing") },
+        [],
+        [UNDECLARED_CORE],
+      );
+      const { category, violations } = await run(root);
+
+      expect(category).toMatchObject({ status: "FAIL" });
+      expect(rules(violations)).toContain("DEP-comity-package-must-be-classified");
+      expect(messages(violations)).toMatch(
+        /@comity\/billing is not classified: it is installed \(version 1\.0\.0, layer "core"\) but not declared as a dependency of any workspace package/,
+      );
+    });
+
+    it("technology adapter, test source → FAIL (the devDependency exception needs a declaration)", async () => {
+      const { violations } = await run(
+        techAdapter(
+          { "src/__tests__/a.test.ts": imp("@comity/billing") },
+          [],
+          [UNDECLARED_CORE],
+        ),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-comity-package-must-be-classified"]);
+    });
+
+    it("undeclared installed ADAPTER imported from an adapter test → FAIL", async () => {
+      const { violations } = await run(
+        techAdapter(
+          { "src/__tests__/a.test.ts": imp("@comity/sql-kysely") },
+          [],
+          [SQL_KYSELY],
+        ),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-comity-package-must-be-classified"]);
+    });
+
+    it("integration adapter → FAIL", async () => {
+      const { violations } = await run(
+        fixture({
+          workspaces: [
+            {
+              name: "@comity/shop-a",
+              layer: "integration-adapter",
+              files: { "src/repo.ts": imp("@comity/billing") },
+            },
+          ],
+          installed: [UNDECLARED_CORE],
+        }),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-comity-package-must-be-classified"]);
+    });
+
+    it("transitive only: nested below a declared package, so it does not even resolve from the adapter → FAIL, never treated as declared", async () => {
+      const root = techAdapter(
+        { "src/repo.ts": imp("@comity/billing") },
+        ["@comity/sql"],
+        [
+          SQL,
+          // the only copy of billing lives inside @comity/sql's own node_modules
+        ],
+      );
+
+      write(
+        join(root, "node_modules/@comity/sql/node_modules/@comity/billing/package.json"),
+        JSON.stringify({
+          name: "@comity/billing",
+          version: "1.0.0",
+          main: "./dist/index.js",
+          comity: { layer: "core" },
+        }),
+      );
+      write(
+        join(root, "node_modules/@comity/sql/node_modules/@comity/billing/dist/index.js"),
+        "export const x = 1;\n",
+      );
+
+      const { category, violations } = await run(root);
+
+      expect(category).toMatchObject({ status: "FAIL" });
+      expect(rules(violations)).toContain("DEP-comity-package-must-be-classified");
+    });
+
+    it("a subpath of an undeclared package is rejected like its root", async () => {
+      const { violations } = await run(
+        techAdapter(
+          { "src/repo.ts": imp("@comity/billing/errors") },
+          [],
+          [{ ...UNDECLARED_CORE, exports: subpathExports("errors") }],
+        ),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-comity-package-must-be-classified"]);
+    });
+  });
+
+  describe("declared but not classifiable, or not resolvable", () => {
+    const declared = (
+      installed: Installed[],
+      spec: string,
+      name = spec,
+    ): string => techAdapter({ "src/repo.ts": imp(spec) }, [name], installed);
+
+    it("no comity.layer → FAIL with the reason", async () => {
+      const { violations } = await run(
+        declared([{ name: "@comity/plain", comity: undefined }], "@comity/plain"),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-comity-package-must-be-classified"]);
+      expect(messages(violations)).toContain("declares no `comity.layer`");
+    });
+
+    it("invalid layer → FAIL naming the value", async () => {
+      const { violations } = await run(
+        declared([{ name: "@comity/odd", comity: { layer: "banana" } }], "@comity/odd"),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-comity-package-must-be-classified"]);
+      expect(messages(violations)).toContain("banana");
+    });
+
+    it("conflicting copies across workspace packages → FAIL", async () => {
+      const root = fixture({
+        workspaces: [
+          {
+            name: "@comity/order-sql",
+            layer: "technology-adapter",
+            files: { "src/repo.ts": imp("@comity/split") },
+            manifest: { devDependencies: { "@comity/split": "1.0.0" } },
+          },
+          {
+            name: "@comity/other-sql",
+            layer: "technology-adapter",
+            files: { "src/a.ts": "export const a = 1;\n" },
+            manifest: { devDependencies: { "@comity/split": "2.0.0" } },
+          },
+        ],
+        installed: [
+          { name: "@comity/split", comity: { layer: "core" }, version: "1.0.0", pnpm: true, linkTo: ["order-sql"] },
+          { name: "@comity/split", comity: { layer: "integration-adapter" }, version: "2.0.0", pnpm: true, linkTo: ["other-sql"] },
+        ],
+      });
+      const { violations } = await run(root);
+
+      expect(rules(violations)).toContain("DEP-comity-package-must-be-classified");
+      expect(messages(violations)).toMatch(/conflicting layers/);
+    });
+
+    it("declared but not installed (unresolvable) → FAIL once, with the reason", async () => {
+      const { violations } = await run(declared([], "@comity/ghost"));
+
+      expect(rules(violations)).toEqual(["DEP-comity-package-must-be-classified"]);
+      expect(messages(violations)).toContain("declared as a dependency but is not installed");
+    });
+
+    it("neither declared nor installed (unresolvable) → FAIL once", async () => {
+      const { violations } = await run(techAdapter({ "src/repo.ts": imp("@comity/nowhere") }, [], []));
+
+      expect(rules(violations)).toEqual(["DEP-comity-package-must-be-classified"]);
+    });
+  });
+
+  describe("declared and classified: existing layer rules apply", () => {
+    it.each([
+      ["hoisted", false],
+      ["pnpm virtual store", true],
+    ])("technology adapter → allowed Core Module, root, valid subpath and type-only (%s) → PASS", async (_n, pnpm) => {
+      const root = techAdapter(
+        {
+          "src/repo.ts":
+            'import { x } from "@comity/sql"; import { y } from "@comity/sql/errors"; export { x, y };\n',
+
+          "src/types.ts": 'import type { T } from "@comity/sql/errors"; export type U = T;\n',
+        },
+        ["@comity/sql"],
+        [{ ...SQL, pnpm }],
+      );
+      const { category, violations } = await run(root);
+
+      expect(violations).toEqual([]);
+      expect(category).toMatchObject({ status: "PASS" });
+    });
+
+    it("an unexported subpath of a classified package → FAIL via comity-import-must-resolve", async () => {
+      const { violations } = await run(
+        techAdapter({ "src/repo.ts": imp("@comity/sql/hidden") }, ["@comity/sql"], [SQL]),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-comity-import-must-resolve"]);
+    });
+
+    it("technology adapter → declared forbidden sibling adapter, production → FAIL", async () => {
+      const { violations } = await run(
+        techAdapter({ "src/repo.ts": imp("@comity/sql-kysely") }, ["@comity/sql-kysely"], [SQL_KYSELY]),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-no-cross-adapter-deps"]);
+    });
+
+    it("technology adapter → installed integration adapter, declared → FAIL (no-cross-adapter-deps)", async () => {
+      const { violations } = await run(
+        techAdapter({ "src/repo.ts": imp("@comity/storefront-shop") }, ["@comity/storefront-shop"], [STOREFRONT]),
+      );
+
+      expect(rules(violations)).toEqual(["DEP-no-cross-adapter-deps"]);
+    });
+
+    it("a workspace Comity package is already known: importing it needs no installed classification", async () => {
+      const { violations } = await run(
+        techAdapter(
+          { "src/repo.ts": imp("@comity/order") },
+          [],
+          [],
+          [
+            {
+              name: "@comity/order",
+              layer: "core",
+              link: true,
+              files: { "src/index.ts": "export const x = 1;\n" },
+              manifest: { main: "./src/index.ts" },
+            },
+          ],
+        ),
+      );
+
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("non-Comity dependencies keep their behaviour", () => {
+    it("an installed third-party package nobody declares is NOT a finding", async () => {
+      const root = techAdapter({ "src/repo.ts": imp("zod") }, [], []);
+
+      write(join(root, "node_modules/zod/package.json"), JSON.stringify({ name: "zod", main: "./index.js" }));
+      write(join(root, "node_modules/zod/index.js"), "export const x = 1;\n");
+
+      const { category, violations } = await run(root);
+
+      expect(violations).toEqual([]);
+      expect(category).toMatchObject({ status: "PASS" });
+    });
+
+    it("an unresolvable third-party package is NOT a finding either (unchanged)", async () => {
+      const { violations } = await run(techAdapter({ "src/repo.ts": imp("not-installed-lib") }, [], []));
+
+      expect(violations).toEqual([]);
+    });
+
+    it("look-alike scopes are not Comity packages", async () => {
+      const { violations } = await run(techAdapter({ "src/repo.ts": imp("@comityx/lib") }, [], []));
+
+      expect(violations).toEqual([]);
+    });
   });
 });

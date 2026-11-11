@@ -227,3 +227,39 @@ export function comityPackageOf(target: string): string | null {
 
   return spec?.[1] ?? null;
 }
+
+/**
+ * Explains why a Comity package that no workspace package declares is not
+ * classified, from the package that dependency-cruiser actually resolved.
+ *
+ * Classification and declaration are separate: a package can carry a valid
+ * `comity.layer` and still be undeclared, and the message says which it is.
+ * The installed manifest is read from the resolved path (never from a name),
+ * so a hoisted copy and a pnpm virtual-store copy are treated alike. Nothing
+ * here makes the package "declared" or gives it a layer for rule matching.
+ */
+export function describeUndeclaredPackage(
+  repoRoot: string,
+  target: string,
+  name: string,
+): string {
+  const marker = `node_modules/${name}/`;
+  const at = target.lastIndexOf(marker);
+
+  if (at === -1) {
+    return "it could not be resolved and is not declared as a dependency of any workspace package";
+  }
+
+  const manifestPath = join(
+    repoRoot,
+    target.slice(0, at + marker.length - 1),
+    "package.json",
+  );
+  const copy = readCopy(name, manifestPath);
+
+  if (copy.invalid !== null) {
+    return `${copy.invalid} (version ${copy.version}), and it is not declared as a dependency of any workspace package`;
+  }
+
+  return `it is installed (version ${copy.version}, layer "${copy.layer}") but not declared as a dependency of any workspace package`;
+}

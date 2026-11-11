@@ -33,6 +33,8 @@ interface Pkg {
   files?: Record<string, string>;
   /** Make `@scope/name` resolve through node_modules to `main`. */
   workspaceLink?: { main: string };
+  /** Extra package.json fields, e.g. an `exports` map. */
+  manifestExtra?: Record<string, unknown>;
 }
 
 function makeFixture(pkgs: Pkg[], withTsconfig = true): string {
@@ -61,6 +63,7 @@ function makeFixture(pkgs: Pkg[], withTsconfig = true): string {
         type: "module",
         ...(p.workspaceLink ? { main: p.workspaceLink.main } : {}),
         comity: { layer: p.layer },
+        ...p.manifestExtra,
       }),
     );
 
@@ -427,14 +430,63 @@ describe("Core → Composition (ADR-025) and other Core restrictions, executed",
   it.each([
     ["runtime composition import", 'import { c } from "../../composition/src/index"; export const x = c;\n'],
     ["type-only composition import", 'import type { M } from "../../composition/src/index"; export type X = M;\n'],
-    ["unresolved composition subpath (value)", 'import { CompositionError } from "@comity/composition/errors"; export const x = CompositionError;\n'],
-    ["unresolved composition subpath (type)", 'import type { ModuleMeta } from "@comity/composition/setup"; export type X = ModuleMeta;\n'],
     ["primitives + kernel, runtime and type", 'import { p } from "../../primitives/src/index"; import type { K } from "../../kernel/src/index"; export const x = p; export type Y = K;\n'],
     ["another Core Module (unchanged behaviour for this repair)", 'import type { Q } from "../../peer/src/index"; export type X = Q;\n'],
   ])("allows Core → %s", (_n, body) => {
     const pkgs = coreWith(body);
 
     expect(cruise(makeFixture(pkgs), pkgs).violations).toEqual([]);
+  });
+
+  // A published-style package: the subpaths exist only through the `exports` map.
+  const compWithExports: Pkg = {
+    ...comp,
+    files: { ...comp.files, "src/setup.ts": "export type ModuleMeta = 1;\n" },
+    workspaceLink: { main: "src/index.ts" },
+    manifestExtra: {
+      exports: {
+        ".": "./src/index.ts",
+        "./errors": "./src/errors.ts",
+        "./setup": "./src/setup.ts",
+      },
+    },
+  };
+
+  it.each([
+    ["composition subpath through the exports map (value)", 'import { CompositionError } from "@comity/composition/errors"; export const x = CompositionError;\n'],
+    ["composition subpath through the exports map (type)", 'import type { ModuleMeta } from "@comity/composition/setup"; export type X = ModuleMeta;\n'],
+  ])("allows Core → %s, resolved (no unresolved bare specifier)", (_n, body) => {
+    const pkgs = [
+      { name: "@comity/catalog", layer: "core", files: pkgFile("", body) },
+      compWithExports, prim, kern, peer, adapter,
+    ];
+
+    expect(cruise(makeFixture(pkgs), pkgs).violations).toEqual([]);
+  });
+
+  it("reports (does not silently allow) a composition subpath the package does not export", () => {
+    const pkgs = [
+      {
+        name: "@comity/catalog",
+        layer: "core",
+        files: pkgFile("", 'import { x } from "@comity/composition/not-exported"; export { x };\n'),
+      },
+      compWithExports, prim, kern, peer, adapter,
+    ];
+
+    expect(cruise(makeFixture(pkgs), pkgs).violations).toEqual([
+      {
+        from: "packages/catalog/src/index.ts",
+        to: "@comity/composition/not-exported",
+        rule: "comity-import-must-resolve",
+      },
+    ]);
+  });
+
+  it("reports an allowed composition subpath that cannot be resolved at all (not linked, no exports)", () => {
+    const pkgs = coreWith('import { CompositionError } from "@comity/composition/errors"; export const x = CompositionError;\n');
+
+    expect(cruise(makeFixture(pkgs), pkgs).violations.map((v) => v.rule)).toEqual(["comity-import-must-resolve"]);
   });
 
   it.each([

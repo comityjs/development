@@ -42,6 +42,9 @@ function generatorForbids(from: string, to: string): boolean {
 
   return config.forbidden.some(
     (rule) =>
+      // `couldNotResolve` rules are about resolvability, not layer policy; a bare specifier
+      // here stands for an edge that resolved.
+      rule.to.couldNotResolve !== true &&
       new RegExp(rule.from.path).test(modulePath) &&
       (rule.from.pathNot === undefined ||
         !new RegExp(rule.from.pathNot).test(modulePath)) &&
@@ -154,4 +157,81 @@ describe("no-layer-violation and the dependency-rules generator agree on the lay
       expect(generatorForbids(from, to)).toBe(forbidden);
     },
   );
+});
+
+describe("test-only sibling-adapter exception: no-layer-violation and the generator agree on what a test file is", () => {
+  const source = "@comity/technology-adapter-a";
+  const sibling = "@comity/technology-adapter-b";
+  const dir = paths[source];
+  const exceptionConfig = buildDependencyRules(classification, {
+    packagePaths: Object.fromEntries(
+      Object.entries(paths).filter(([name]) => name !== sibling),
+    ),
+    installedPackages: [sibling],
+  });
+
+  /** ESLint: the sibling is a declared devDependency of `source`; is the import at `file` reported? */
+  function eslintReports(file: string): boolean {
+    const linter = new Linter({ cwd: "/" });
+    const messages = linter.verify(
+      `import { x } from "${sibling}"; export const y = x;`,
+      {
+        files: ["**"],
+        plugins: { c: { rules: { r: noLayerViolation as never } } },
+        rules: {
+          "c/r": [
+            "error",
+            {
+              sourceName: source,
+              classification: Object.fromEntries(classification),
+              development: { [source]: [sibling] },
+            },
+          ],
+        },
+        languageOptions: { ecmaVersion: "latest", sourceType: "module" },
+      } as never,
+      `/repo/${dir}/${file}`,
+    );
+
+    return messages.some((m) => m.ruleId !== null);
+  }
+
+  /**
+   * Generator: would dependency-cruiser report the same import, with the sibling resolved into node_modules and
+   * declared in `devDependencies` (dependency type `npm-dev`)?
+   */
+  function generatorReports(file: string): boolean {
+    const modulePath = `${dir}/${file}`;
+    const target = `node_modules/${sibling}/dist/index.js`;
+
+    return exceptionConfig.forbidden.some(
+      (rule) =>
+        rule.name === "no-cross-adapter-deps" &&
+        rule.to.dependencyTypesNot === undefined &&
+        new RegExp(rule.from.path).test(modulePath) &&
+        (rule.from.pathNot === undefined ||
+          !new RegExp(rule.from.pathNot).test(modulePath)) &&
+        new RegExp(rule.to.path).test(target) &&
+        (rule.to.pathNot === undefined || !new RegExp(rule.to.pathNot).test(target)),
+    );
+  }
+
+  it.each([
+    ["src/index.ts", true],
+    ["src/repository/order-repository.ts", true],
+    ["src/contest.ts", true],
+    ["src/latest.ts", true],
+    ["src/__tests__/a.test.ts", false],
+    ["src/__tests__/harness.ts", false],
+    ["src/dialects/pg/__tests__/conformance.test.ts", false],
+    ["src/a.test.ts", false],
+    ["src/a.spec.tsx", false],
+    ["src/a.test.mjs", false],
+    ["src/a.tests.ts", true],
+    ["src/my__tests__/a.ts", true],
+    ["src/test/a.ts", true],
+  ])("%s: reported = %s in both", (file, reported) => {
+    expect(eslintReports(file)).toBe(reported);
+    expect(generatorReports(file)).toBe(reported);
+  });
 });

@@ -10,6 +10,8 @@
  *   - adapters.md
  */
 
+import { appliesToDeterministicLayer, LAYER_SCOPE_SCHEMA_PROPERTIES } from "./layer-scope.js";
+
 type Rule = unknown;
 
 const FORBIDDEN_SPECIFIERS = new Set(["crypto", "node:crypto", "webcrypto"]);
@@ -65,13 +67,7 @@ const rule: Rule = {
     schema: [
       {
         type: "object",
-        properties: {
-          sourceName: {
-            type: "string",
-            description:
-              "Name of the source package (e.g., '@comity/auth'). Used to scope the rule.",
-          },
-        },
+        properties: LAYER_SCOPE_SCHEMA_PROPERTIES,
         additionalProperties: false,
       },
     ],
@@ -80,14 +76,13 @@ const rule: Rule = {
   create(context: any) {
     const opts = (context.options[0] ?? {}) as {
       sourceName?: string;
+      classification?: Record<string, unknown>;
     };
-    const sourceName = opts.sourceName ?? null;
 
-    // If sourceName provided, use it for classification; otherwise fall back to filename
-    const inCore = sourceName
-      ? sourceName.startsWith("@comity/") &&
-        !["@comity/cli", "@comity/graphql-builder"].includes(sourceName)
-      : isInCorePackage(context.filename ?? context.getFilename());
+    // Scope by the package's declared layer (see layer-scope.ts), never by the `@comity/*` prefix.
+    const inCore = appliesToDeterministicLayer(opts, () =>
+      isInCorePackage(context.filename ?? context.getFilename()),
+    );
 
     // Disable this rule outside Core packages
     if (!inCore) {

@@ -4,6 +4,8 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -547,7 +549,42 @@ describe("declaration-dependencies", () => {
 
     expect(result.status).toBe("PASS");
     expect(result.findings).toEqual([]);
-    expect(result.reason).toContain("54 publishable package(s)");
-    expect(result.reason).toContain("537 declaration file(s)");
+
+    // The scan must stay non-vacuous and complete. The expected figures are derived from the
+    // Community checkout itself, not frozen: Community's package set and public type surface evolve
+    // (546 files in 54 packages on 2026-11-11, against 537 when this test was written), so an
+    // absolute snapshot only measures repository drift. What matters is that every publishable
+    // package was scanned and every one of its declaration files was visited.
+    const packageDirs = readdirSync(join(communityRoot, "packages"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => join(communityRoot, "packages", entry.name))
+      .filter((dir) => {
+        const manifestPath = join(dir, "package.json");
+
+        return (
+          existsSync(manifestPath) &&
+          existsSync(join(dir, "dist")) &&
+          (JSON.parse(readFileSync(manifestPath, "utf8")) as { private?: boolean }).private !== true
+        );
+      });
+    const declarationFiles = (dir: string): number =>
+      readdirSync(dir, { withFileTypes: true }).reduce((count, entry) => {
+        if (entry.name === "node_modules" || entry.name === ".turbo") return count;
+
+        const path = join(dir, entry.name);
+
+        if (entry.isDirectory()) return count + declarationFiles(path);
+
+        return count + (/\.d\.(?:ts|mts|cts)$/.test(entry.name) ? 1 : 0);
+      }, 0);
+    const expectedFiles = packageDirs.reduce(
+      (sum, dir) => sum + declarationFiles(join(dir, "dist")),
+      0,
+    );
+
+    expect(packageDirs.length).toBeGreaterThan(0);
+    expect(expectedFiles).toBeGreaterThan(0);
+    expect(result.reason).toContain(`${packageDirs.length} publishable package(s)`);
+    expect(result.reason).toContain(`${expectedFiles} declaration file(s)`);
   });
 });

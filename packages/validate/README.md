@@ -13,6 +13,21 @@ implements the rules in ADR-035. Its only responsibilities are:
 4. Collect and normalize results.
 5. Present a unified summary.
 
+## Adapter peer declaration models
+
+The `adapter-peers` engine applies one of two explicit models, chosen by the repository category
+(`comity.config.json` → `repository.type`):
+
+- **paired** (every category except `enterprise`; the Comity monorepo convention, ADR-033
+  Decision 3): consumed Core Modules are listed in `dependencies` and in `peerDependencies`.
+  Consumption is read from the manifest only.
+- **peer-only** (`enterprise`; repositories consuming published Comity packages): Comity
+  contracts are declared once, as `peerDependencies` (plus an exact `devDependencies` entry), never
+  duplicated into runtime `dependencies` (`ARCH-ADAPTER-PEER-006`). Consumption is read from the adapter's production
+  imports (tests, fixtures and build output excluded): an imported Core Module must be peered
+  (`-003`), and a Comity peer must be the implemented Core Module, a kernel package or an imported
+  Core Module (`-004`). The layer of a published package comes from its installed manifest.
+
 ## Scope
 
 The engines wrap shared Development-owned tooling:

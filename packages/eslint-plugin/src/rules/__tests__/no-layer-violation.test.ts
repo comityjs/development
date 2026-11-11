@@ -21,11 +21,13 @@ const CLASSIFICATION: Record<string, string> = {
   "@comity/cache-kv": "technology-adapter",
   "@comity/cache-redis": "technology-adapter",
   "@comity/payment-stripe": "integration-adapter",
+  "@comity/order-store": "technology-adapter",
 };
 
 const IMPLEMENTS: Record<string, string> = {
   "@comity/cache-kv": "@comity/cache",
   "@comity/cache-redis": "@comity/cache",
+  "@comity/order-store": "@comity/order",
 };
 
 /** Runs the real rule through the real ESLint engine for `source`, a package of the classification. */
@@ -34,6 +36,7 @@ function lint(
   code: string,
   options: Record<string, unknown> = {},
   classification: Record<string, string> = CLASSIFICATION,
+  file?: string,
 ): Message[] {
   const linter = new Linter({ cwd: "/" });
 
@@ -59,7 +62,7 @@ function lint(
       },
       languageOptions: { ecmaVersion: "latest", sourceType: "module" },
     } as never,
-    `/repo/packages/${source.replace("@comity/", "")}/src/index.ts`,
+    file ?? `/repo/packages/${source.replace("@comity/", "")}/src/index.ts`,
   ) as Message[];
 }
 
@@ -185,6 +188,139 @@ describe("no-layer-violation", () => {
       ).toHaveLength(1);
     });
 
+    describe("Technology Adapter consuming additional Core Modules (adapters.md §13)", () => {
+      const consumes = { "@comity/order-store": ["@comity/catalog", "@comity/cache"] };
+
+      it("accepts the implemented Core Module and the declared additional Core Modules", () => {
+        for (const specifier of [
+          "@comity/order",
+          "@comity/order/errors",
+          "@comity/catalog",
+          "@comity/cache",
+          "@comity/primitives/result",
+          "@comity/composition",
+        ]) {
+          expect(
+            lint("@comity/order-store", imp(specifier), { consumes }),
+          ).toEqual([]);
+        }
+      });
+
+      it("accepts only the implemented Core Module when nothing else is consumed", () => {
+        expect(lint("@comity/order-store", imp("@comity/order"))).toEqual([]);
+        expect(
+          violations(lint("@comity/order-store", imp("@comity/catalog"))),
+        ).toHaveLength(1);
+        expect(
+          violations(
+            lint("@comity/order-store", imp("@comity/catalog"), { consumes: {} }),
+          ),
+        ).toHaveLength(1);
+      });
+
+      it("rejects a Core Module that is neither implemented nor declared as consumed", () => {
+        const messages = lint(
+          "@comity/order-store",
+          imp("@comity/payment"),
+          { consumes },
+          { ...CLASSIFICATION, "@comity/payment": "core" },
+        );
+        expect(messages).toHaveLength(1);
+        expect(messages[0]?.messageId).toBe("forbidden");
+      });
+
+      it("never admits a non-Core layer through consumes", () => {
+        const hostile = {
+          "@comity/order-store": [
+            "@comity/cache-kv",
+            "@comity/payment-stripe",
+            "@comity/composition",
+            "@comity/kernel",
+          ],
+        };
+
+        expect(
+          violations(
+            lint("@comity/order-store", imp("@comity/cache-kv"), { consumes: hostile }),
+          ),
+        ).toHaveLength(1);
+        expect(
+          violations(
+            lint("@comity/order-store", imp("@comity/payment-stripe"), {
+              consumes: hostile,
+            }),
+          ),
+        ).toHaveLength(1);
+      });
+
+      it("does not leak one package's consumes to another package", () => {
+        expect(
+          violations(lint("@comity/cache-kv", imp("@comity/catalog"), { consumes })),
+        ).toHaveLength(1);
+      });
+
+      it("does not change Core, kernel, primitives, composition or Integration Adapter restrictions", () => {
+        const all = { "@comity/payment-stripe": ["@comity/composition"] };
+
+        expect(
+          violations(lint("@comity/payment-stripe", imp("@comity/composition"), { consumes: all })),
+        ).toHaveLength(1);
+        expect(
+          violations(lint("@comity/kernel", imp("@comity/catalog"), { consumes })),
+        ).toHaveLength(1);
+        expect(
+          violations(lint("@comity/catalog", imp("@comity/cache-kv"), { consumes })),
+        ).toHaveLength(1);
+      });
+
+      describe("test sources and declared devDependencies", () => {
+        const development = { "@comity/order-store": ["@comity/cache-kv"] };
+        const testFile = "/repo/adapters/order-store/src/dialects/__tests__/db.test.ts";
+        const supportFile = "/repo/adapters/order-store/src/__tests__/support.ts";
+        const prodFile = "/repo/adapters/order-store/src/index.ts";
+        const run = (specifier: string, file: string, dev = development) =>
+          violations(
+            lint("@comity/order-store", imp(specifier), { development: dev }, CLASSIFICATION, file),
+          );
+
+        it("lets test sources import a technology binding the adapter declares as a devDependency", () => {
+          expect(run("@comity/cache-kv", testFile)).toHaveLength(0);
+          expect(run("@comity/cache-kv/errors", supportFile)).toHaveLength(0);
+        });
+
+        it("never lets production sources import it", () => {
+          expect(run("@comity/cache-kv", prodFile)).toHaveLength(1);
+        });
+
+        it("only admits packages declared as devDependencies", () => {
+          expect(run("@comity/cache-redis", testFile)).toHaveLength(1);
+          expect(run("@comity/cache-kv", testFile, {})).toHaveLength(1);
+        });
+
+        it("does not apply to other layers", () => {
+          const messages = violations(
+            lint(
+              "@comity/catalog",
+              imp("@comity/cache-kv"),
+              { development: { "@comity/catalog": ["@comity/cache-kv"] } },
+              CLASSIFICATION,
+              "/repo/packages/catalog/src/__tests__/a.test.ts",
+            ),
+          );
+
+          expect(messages).toHaveLength(1);
+        });
+      });
+
+      it("still rejects adapter → adapter for the adapter that consumes Core Modules", () => {
+        expect(
+          violations(
+            lint("@comity/order-store", imp("@comity/cache-redis"), { consumes }),
+          ),
+        ).toHaveLength(1);
+      });
+    });
+
     it("accepts the documented Integration Adapter edges and leaves composition unchanged for them", () => {
       expect(lint("@comity/payment-stripe", imp("@comity/catalog"))).toEqual(
         [],
@@ -260,6 +396,8 @@ describe("no-layer-violation", () => {
       ).meta.schema[0]?.properties;
       expect(Object.keys(props ?? {}).sort()).toEqual([
         "classification",
+        "consumes",
+        "development",
         "implements",
         "sourceName",
       ]);

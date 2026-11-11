@@ -7,6 +7,10 @@ import {
   classifyByLayer,
 } from "@comity-dev/dependency-rules";
 import { spawnSync } from "node:child_process";
+import {
+  classifyInstalledComityPackages,
+  comityPackageOf,
+} from "../installed-packages.js";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
@@ -269,9 +273,17 @@ export function runDepcruise(
     };
   }
 
+  // Workspace packages are classified from this repository; installed Comity
+  // packages from the manifest that is actually installed. Installed packages
+  // that cannot be classified are left out, so their imports fail closed.
+  const installed = classifyInstalledComityPackages(repo);
   const classification = classifyByLayer(
     repo.packages.map((p) => ({ name: p.name, layer: p.layer })),
   );
+
+  for (const [name, layer] of installed.layers) {
+    if (!classification.has(name)) classification.set(name, layer);
+  }
 
   // Rules are matched against module paths, so hand the generator every
   // package's directory, relative to the repository root.
@@ -284,6 +296,7 @@ export function runDepcruise(
   try {
     depConfig = buildDependencyRulesForRoot(classification, repo.root, {
       packagePaths,
+      installedPackages: [...installed.layers.keys()],
     });
   } catch (error) {
     return fail(
@@ -424,13 +437,31 @@ export function runDepcruise(
     );
     const findings: Finding[] = [];
 
+    const workspaceNames = new Set(repo.packages.map((p) => p.name));
+
+    // Why the target Comity package has no layer, when that is the reason a
+    // layer rule could not accept it. Empty for a classified package.
+    const classificationNote = (target: string): string => {
+      const name = comityPackageOf(target);
+
+      if (name === null || classification.has(name)) return "";
+
+      const reason =
+        installed.problems.get(name) ??
+        (workspaceNames.has(name)
+          ? "the workspace package declares no valid `comity.layer`"
+          : "it is not declared as a dependency of any workspace package, so no installed manifest was read");
+
+      return ` [${name} is not classified: ${reason}]`;
+    };
+
     for (const v of summary.violations) {
       if (v.severity === "ignore") continue;
 
       findings.push({
         tool: TOOL,
         rule: `DEP-${v.rule}`,
-        message: `${v.from} → ${v.to}: ${comments.get(v.rule) ?? "Dependency rule violation"}${v.severity === "info" ? " (info)" : ""}`,
+        message: `${v.from} → ${v.to}: ${comments.get(v.rule) ?? "Dependency rule violation"}${classificationNote(v.to)}${v.severity === "info" ? " (info)" : ""}`,
         file: v.from,
         severity: v.severity === "error" ? "error" : "warning",
       });

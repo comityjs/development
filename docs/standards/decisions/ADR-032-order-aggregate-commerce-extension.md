@@ -31,6 +31,18 @@
 >   five-kind `OrderLineSubjectSnapshot`, §1 item 3's generic `priceBasis`/`term`, and §3's O-11/`invalid_buyer`
 >   requirement; §2's original five-reason count is reconciled to four. The replacement contract is in **§2B**.
 >   AM-5a…AM-5d, ADR-008/OD-8 and ADR-014 are unchanged, and the 2026-11-05 acceptance stands for the historical text.
+> - **Amendment 4 — ACCEPTED 2026-11-17.** §2C records the Order refund reversal fact (`Order.recordReversal`). It was
+>   drafted and approved in stages on 2026-11-17: the architecture owner's decisions **D4-1 … D4-8**, **P-1 … P-5**, the
+>   HTTP mapping and the corrective decisions **CD-A … CD-E** are all recorded in §2C with their own provenance. By owner
+>   decision **D4-7**, acceptance followed the implementation of `Order.recordReversal` in Community `@comity/order`.
+>   At the time of acceptance that implementation exists in the Community working tree (HEAD `038ed65`, changes
+>   **uncommitted and unreleased**), and an independent review of it was reported by the architecture owner (findings F-2,
+>   F-3 and F-4; reviewer identity and review date are not recorded here). **Formal acceptance was authorized by the
+>   architecture owner in the closure work package of 2026-11-17 and was made on that date**, after the verification
+>   recorded in §2C.I. This acceptance covers Amendment 4 only: the base acceptance of 2026-11-05 and the maintainer's
+>   confirmation for Amendments 2 and 3 are unchanged, and nothing here accepts, modifies or implements ADR-029, ADR-030,
+>   ADR-031 or ADR-037, satisfies Payment Attempt Store gate **G-3** as a whole, or authorises any commit, publication,
+>   release or Commerce work.
 
 **Status:** Accepted
 
@@ -155,7 +167,10 @@ Existing reasons keep their meaning (`invalid_quantity`, `invalid_item`, `invali
 `shipping_destination_immutable`, `ambiguous_shipping_destination`, `duplicate_item_id` — the last retained for a
 duplicate `lineId`). `stale_version`, `bundle_allocation_incoherent` and `invalid_line_term` do **not** exist. The
 over-reversal reason `reversal_exceeds_captured` is **not** in this inventory; it ships later, additively, with the
-deferred `recordReversal` (§5).
+deferred `recordReversal` (§5). **[Amendment 4 — §2C, accepted 2026-11-17]** Six additive reversal reasons
+(`reversal_exceeds_captured`, `reversal_conflict`, `invalid_reversal_amount`, `invalid_reversal_id`,
+`invalid_reversal_timestamp`, `invalid_reversal_kind`) now extend the inventory with `recordReversal`; this paragraph
+records the Phase A state.
 
 ### 2A. Amendment 2 — `PriceRecord` reconciliation (AM-5a…AM-5d, 2026-11-06)
 
@@ -279,6 +294,440 @@ unchanged; `invalid_item` and `duplicate_item_id` remain in the union as accepte
 payment-fact progression; the advisory `version`; ADR-008/OD-8; ADR-014. This amendment records no new acceptance of
 the ADR; it incorporates the separately accepted boundary decision.
 
+### 2C. Amendment 4 — Order refund reversal facts (ACCEPTED 2026-11-17)
+
+**Status of this section: Accepted on 2026-11-17** (acceptance record in section I). It supersedes the §5 exclusion of
+`Order.recordReversal` and the reversals collection and extends §2's reason inventory by six reversal reasons. The scope is
+deliberately narrow: recording **confirmed refunds** in the `Order` aggregate. It is not a general mechanism for financial
+adjustments.
+
+**Labels.** **[ACC]** decided in an Accepted ADR or an owner-approved Commerce decision (source named). **[OWNER
+2026-11-17]** an architecture-owner decision of 2026-11-17 (D4-1 … D4-8, P-1 … P-5, CD-A … CD-E), recorded here on the
+owner's explicit instruction; the decision is normative through this amendment's acceptance, which is a separate act
+(section I). **[PROP]** wording first proposed in the draft; it is normative since the acceptance of this amendment.
+**[FACT]** verified evidence, not a decision. **[IMPL]** implementation guidance; not contract.
+
+**Sequencing (D4-7) [OWNER 2026-11-17].** The existing accepted wording was respected and not reinterpreted: ADR-031
+(Relationship to existing ADRs), ADR-037 (Relationship, ADR-013/ADR-032 item) and
+`commerce/docs/architecture/03-bounded-contexts.md` §3.2c state that Amendment 4 stays deferred until `recordReversal` is
+implemented. Amendment 4 therefore stayed Proposed until `Order.recordReversal` was implemented, and was accepted after
+the implementation (section I). No note is added to ADR-031, ADR-037 or any Commerce document, and their status,
+attribution and acceptance history are unchanged.
+
+#### A. Scope and responsibilities
+
+- **[ACC]** A reversal is a separate, append-only fact in its own collection on the Order. It is **not** a mutation of a
+  payment snapshot and **not** a payment status (ADR-031 §4: "`refunded` is never a payment status"; Commerce 03 §3.2c,
+  08 §4.2 rule 6).
+- **[ACC]** `Order` records the fact only. It performs no provider I/O, does not execute, initiate or confirm refunds,
+  and does not import `@comity/payment` (ADR-031 and ADR-037, "Relationship" sections, for ADR-013/ADR-032; Commerce 03
+  §3.2c "Commerce records reversals; it never executes them"). This matches `Order.attachPayment`, which "performs no
+  payment logic, knows no payment module" (JSDoc, `community/packages/order/src/entities/order.ts`).
+- **[ACC]** Recording a reversal changes neither the Order **status** nor the Order **total**; the outstanding balance is
+  derived, never stored (ADR-037 F-4; Commerce 03 §3.2c).
+- **[ACC]** Provider confirmation, the refund-operation lifecycle, identity binding, orchestration and recovery stay
+  outside the aggregate (ADR-031 §4–§6; Payment Attempt Store design §10.4). Only a `succeeded` refund with a valid,
+  provider-confirmed amount is translated into a reversal; a pending refund, a failed refund and a `succeeded` refund
+  with an unrepresentable amount never are (ADR-031 §4, §7).
+- **[PROP]** The operation is `Order.recordReversal(reversal): Result<void, OrderError>`, mirroring `attachPayment`
+  (signature recorded as "Deferred" in Commerce 08 §4.2).
+- **[OWNER 2026-11-17, D4-8]** `recordReversal` is permitted in **every** Order status. Its validity is determined by the
+  captured payment facts and invariant R-1, never by the commercial status of the Order; no status-specific restriction
+  is introduced. (This is consistent with `attachPayment`, legal in any status: ADR-037; Commerce CC-2.)
+
+#### B. Reversal identity
+
+- **[ACC]** A reversal carries a **required, caller-supplied** `reversalId`; for a refund it **equals the
+  `RefundAttemptId`** (ADR-031 §2 and §7; ADR-037 follow-up CC-3; Commerce 03 §3.2c, 08 §4.2). In the Payment Attempt
+  Store the `RefundAttemptId` is the refund operation record's `operation_record_id` (design §5, §9.2).
+- **[ACC]** The identity is not derived from provider data: neither the provider `refundId` (can be absent on a pending
+  response) nor a notification `eventId` (identifies a delivery, not a refund) is used (ADR-031 §6, Alternatives).
+- **[OWNER 2026-11-17, D4-1]** The deduplication identity of v1 is `reversalId`, and v1 reversals are refund reversals
+  only.
+
+#### C. Reversal fact shape (v1)
+
+**[OWNER 2026-11-17, D4-1]** Version 1 supports **exclusively `kind: "refund"`**. `credit` and `adjustment`, which appear
+in the Commerce planned shape (08 §4.2, 03 §3.2c) but are defined by no ADR, are **deferred to a future extension with
+separately defined semantics and identity rules**. `reference` is **not part of the v1 contract**, because its semantics
+are not sufficiently defined (for payment facts it carries the `PaymentAttemptId`, ADR-037 CC-1; for a refund reversal
+that role is already taken by `reversalId`). The v1 fact is therefore:
+
+| Field | Required | Source and purpose | Notes |
+|---|---|---|---|
+| `reversalId: string` | required | Caller-supplied identity; `RefundAttemptId` ([ACC] ADR-031 §7, CC-3) | Validation of the string form (non-empty, opaque) is not specified by any source; see the remaining ambiguities |
+| `kind: "refund"` | required | Discriminator reserved for the deferred kinds | [OWNER D4-1] The only v1 value |
+| `amount: Money` | required, strictly positive | The provider-confirmed refund amount (ADR-031 §4, §7) | [OWNER D4-3] An amount less than or equal to zero is rejected. `Money` is non-negative and zero is representable (ADR-031 verified facts) |
+| `paymentId: string` | required | The payment fact being reversed | [ACC] required (Commerce 03 §3.2c, 08 §4.2 rule 5) |
+| `recordedAt: Instant` | required | When the fact was recorded | [OWNER D4-3] **Caller-supplied**; see D |
+
+No other field exists in v1. Descriptive metadata (for example `reason`, or a future `reference`), if introduced by a
+later version, must not silently become part of v1 equality (D4-3).
+
+**Deferral of the `attachPayment` currency guard (D4-6) [OWNER 2026-11-17].** ADR-037 (Relationship; Unresolved question
+4) refers to an optional Order-level currency guard on `attachPayment` as "deferred to ADR-032 Amendment 4". **This
+amendment does not include it.** The guard is excluded and deferred to a separate owner decision; `attachPayment` and the
+payment-fact progression (§3) are unchanged by Amendment 4. ADR-037 is not modified.
+
+#### D. Idempotency, conflicts and time
+
+Following the `attachPayment` / `evaluatePaymentFact` convention (`community/packages/order/src/entities/order.ts`): the
+outcomes are *append*, *no-op* or *conflict*; a no-op succeeds and touches nothing; a conflict returns a `failure` with an
+`OrderError` and leaves the aggregate unchanged.
+
+- **[ACC]** An identical repeat of a recorded `reversalId` is an idempotent no-op; the same `reversalId` with different
+  content is a conflict reported with an additive Order reason; otherwise the fact is appended only if R-1 holds
+  (ADR-031 §7).
+- **[OWNER 2026-11-17, D4-3]** The deduplication identity is `reversalId`. **Content equality consists of `kind`,
+  `paymentId` and `amount`.** `recordedAt` is **excluded**. A retry with the same `reversalId`, `kind`, `paymentId` and
+  `amount` is a **no-op even when the supplied `recordedAt` differs**; on a no-op nothing is touched, including the
+  stored `recordedAt`.
+- **[OWNER 2026-11-17, D4-3, P-3, P-4, CD-C, CD-D]** Evaluation order of `recordReversal`, so that a retry of an
+  already-recorded reversal is a no-op even if R-1 would now reject the same amount:
+  1. an empty or whitespace-only `reversalId` (`trim().length === 0`) → `order:invalid_reversal_id`, before identity;
+  2. identity: an identical existing reversal is a **no-op**; the same `reversalId` with different content →
+     `order:reversal_conflict`;
+  3. for a genuinely new reversal only: a `kind` other than `"refund"` at runtime → `order:invalid_reversal_kind`;
+  4. the amount → `order:invalid_reversal_amount`;
+  5. `recordedAt` → `order:invalid_reversal_timestamp` (a no-op neither reads nor validates `recordedAt`);
+  6. captured-fact uniqueness for the `paymentId` → `order:reversal_conflict` (CD-B);
+  7. R-1 → `order:reversal_exceeds_captured`;
+  8. append, with `updatedAt = recordedAt` (P-2).
+
+  No check changes state before step 8: every rejection and every no-op leaves the aggregate, `updatedAt` included,
+  unchanged. Hydrated historical reversals are never revalidated.
+- **[OWNER 2026-11-17, D4-3]** `recordedAt: Instant` is **supplied by the caller**. The aggregate **must not generate
+  timestamps from a system clock** in `recordReversal`. This is consistent with Commerce decision **D-026** (new
+  aggregate data receives instants from the caller; `commerce/docs/architecture/11-decision-register.md`, D-026) and with
+  the rule that domain entities do not store `Date.now()` results. It differs from `attachPayment`, which reads
+  `Instant.now()` for `updatedAt`; the existing behaviour of `attachPayment` is not changed here.
+- **Recovery consequence.** Because variable data is excluded from equality, the retry in Payment Attempt Store design
+  §10.4 step 2 is a no-op however late it runs (section G).
+
+**Error reasons (D4-4) [OWNER 2026-11-17].** Two additive Order reasons are confirmed, `order:`-prefixed like the existing
+ones (`community/packages/order/src/errors/order.ts`, `OrderErrorReason`; additive per `errors.md` §10):
+
+| Reason | Raised when | Convention to follow |
+|---|---|---|
+| `order:reversal_exceeds_captured` | R-1 would be violated, including when no `captured` fact exists for the `(paymentId, currency)` (captured amount zero) | Already named in §2 and Commerce 03 §3.2c as the future over-reversal reason |
+| `order:reversal_conflict` | The `reversalId` is already recorded with different `kind`, `paymentId` or `amount` | Named as "for example `reversal_conflict`" in ADR-031 §7; this draft confirms the name |
+
+**[PROP]** Messages, HTTP statuses and `details` follow the existing conventions: a message per reason in
+`REASON_MESSAGES`, **409** for both conflict-class reasons (as `payment_fact_conflict`, `currency_mismatch`,
+`price_incoherent`), and the existing `details` keys (`orderId`, `field`, …). No additional error metadata is invented;
+in particular no `reversalId` key is added to `details` by this draft. The HTTP statuses were subsequently approved by the
+owner (section H, "HTTP mapping", **[OWNER 2026-11-17]**).
+
+**Complete set of reversal-related reasons.** The two reasons above were extended by owner decisions of 2026-11-17 (section
+H). There are **six reversal-related reasons in total**: `order:reversal_exceeds_captured` and `order:reversal_conflict`
+(D4-4), and four newly introduced input-validation reasons, `order:invalid_reversal_amount` (P-1),
+`order:invalid_reversal_id` (P-3), `order:invalid_reversal_timestamp` (P-4) and `order:invalid_reversal_kind` (CD-C).
+`order:reversal_conflict` is also used for a duplicate `reversalId` in `Order.create` and for ambiguous captured history
+(CD-A, CD-B).
+
+**Non-positive amount.** The owner directed reuse of an existing generic Order reason if the existing conventions provide
+an appropriate one, and no third reversal-specific reason without a demonstrated need. The existing reasons are
+`invalid_quantity` (line quantity), `invalid_item`, `invalid_status_transition`, `shipping_destination_immutable`,
+`ambiguous_shipping_destination`, `duplicate_item_id`, `currency_mismatch`, `price_incoherent`, `commitment_immutable` and
+`payment_fact_conflict`. None of them describes an invalid reversal amount, and the only candidate, `invalid_quantity`,
+is documented and messaged as an order-line quantity. This draft therefore **does not select a reason** and **adds no
+third reason as a decision** in D4-4 itself. The owner subsequently approved the additive reason
+`order:invalid_reversal_amount` (section H, P-1, **[OWNER 2026-11-17]**); D4-4's two reasons and their semantics are
+unchanged.
+
+#### E. Cumulative reversal invariant R-1
+
+**[ACC]** text: "per `paymentId` and currency, `Σ reversals ≤ Σ captured`" (ADR-031 §7; Commerce 08 §4.2 and 03 §3.2c).
+**[OWNER 2026-11-17, D4-2]** Its v1 meaning is:
+
+- The invariant is scoped by **`(paymentId, currency)`**. Sum all recorded reversals for the same payment and currency
+  (including the reversal being recorded) and compare that sum against the captured amounts for the same payment and
+  currency; the sum must not exceed the captured amount.
+- Under the accepted payment-fact progression (§3, owner decision D-1: dedupe on `(paymentId, status)`, `captured`
+  terminal, a same-key different-amount fact is `payment_fact_conflict`; partial captures unsupported in v1, ADR-037) a
+  `paymentId` has **at most one `captured` fact**. The captured sum is therefore that single fact's amount.
+- **If no `captured` fact exists** for the `paymentId` (none recorded, or only `authorized`, `failed` or `cancelled`),
+  the captured amount is **zero** and any positive reversal violates R-1 (`order:reversal_exceeds_captured`).
+- **No implicit currency conversion.** Amounts are compared only when comparable. Comparison uses the `Money`
+  representation available at runtime, **including its current exponent**; a reversal whose currency is not the
+  currency of the captured fact is not summed against it (its captured amount for that currency is zero).
+- **Accepted limitation (PAYMENT-PERSISTENCE-01) [OWNER D4-2, D4-5].** `Money` does not guarantee preservation of the
+  historical currency exponent (Commerce 08 §4.2). For v1 this limitation is **explicitly accepted**: R-1 is evaluated on
+  the runtime `Money` representation, not on a historical exponent.
+- The existing payment-fact progression is not changed and partial captures are not introduced.
+
+**Recovery requirement for the application (not an Order rule) [OWNER D4-2].** If a refund is provider-confirmed before
+its captured payment fact is durably persisted, the application leaves the refund operation **open and recoverable**. It
+does not treat the missing capture as a permanent refund refusal. This preserves the §10.4 ordering of the Payment
+Attempt Store design: the Order records the capture fact first, and the open operation remains a reconciliation
+candidate until the reversal can be recorded. The Order itself reports `order:reversal_exceeds_captured`; classifying
+that outcome as recoverable or permanent is the application's responsibility and is not changed by the design document
+here.
+
+#### F. Persistence and concurrency consequences
+
+**Contract consequences** (follow from the owner decisions and accepted ADR-029/ADR-001; effective on acceptance):
+
+- **[OWNER 2026-11-17, D4-5]** The reversals collection is **normalized**: an **absent** reversals collection and an
+  **empty** one have the **same semantic meaning**. The distinction that `payments` preserves between absent and empty
+  is not replicated for reversals. Existing persisted Orders **hydrate with an empty reversals collection** after the
+  additive migration.
+- **[ACC]** Hydration restores persisted state **verbatim** (ADR-001), as for `payments`; accessors return copies, as
+  `Order.payments` does.
+- **[ACC]** The repository persists the root and its reversals **atomically** under the versioned save of ADR-029: one
+  compare-and-set on the root version, all child writes committed or none, a stale save mutates nothing, and no internal
+  retry of a conflict (ADR-029 §4.3, Guarantees 2, 5 and 6). A reversal recorded on a stale snapshot therefore fails with
+  `repository:conflict` and never overwrites a newer reversal.
+- **[ACC]** A versioned adapter that persists reversals as related records declares multi-record atomicity, so TC-6 is
+  mandatory for it (ADR-029 §6; `repository-conformance.md`), and its full-state capture used by TC-6 must include the
+  reversal records.
+- **[OWNER 2026-11-17, D4-5]** The historical `Money` exponent limitation is accepted for v1 (see E).
+
+**Implementation guidance** (**[IMPL]**, not contract):
+
+- `@comity/order`: the optional reversals collection on the Order data and state, `recordReversal` beside
+  `attachPayment`, the six reasons in `OrderErrorReason`, and copy-on-save reversals in the memory repository — **done**
+  in the Community working tree (section I).
+- Commerce `@comity/order-sql` (`commerce/adapters/order-sql`), which today persists payment facts in
+  `comity_order_payments` next to `comity_order_orders`: an additive child table for reversals in both the PostgreSQL
+  and the SQLite/D1 migrations, written inside the existing atomic save (PostgreSQL transaction; SQLite/D1 single
+  `atomicBatch`), with no flag analogous to `has_payments`, and the reversal records added to the TC-6 scenario and the
+  full-state fixtures.
+- An additive migration and a minor 0.x release of `@comity/order`, with a migration note for adapters.
+
+#### G. Relationship to the Payment Attempt Store recovery order (design §10.4, OT-5d)
+
+As documented in the design (read-only reference, `payment-attempt-store-design-proposal.md` §6.3 OT-5d and §10.4; **this
+amendment does not change the design document and does not claim that G-3 is satisfied**):
+
+1. A refund operation reaches `succeeded` with a valid amount and a bound `refundId` (provider result, `retrieveRefund`,
+   verified notification or manual entry).
+2. The application loads the Order, calls `recordReversal({ reversalId: <RefundAttemptId>, kind: "refund", … })` and
+   saves it with the versioned save. The outcome is *append* or *no-op*.
+3. Only after step 2 is confirmed durable, the refund operation transition is persisted with its own compare-and-set.
+
+**Why a crash between 2 and 3 is recoverable.** Until step 3 commits, the refund operation stays open, so it remains a
+reconciliation candidate (design §10.4 "Recovery marker"). A retry re-obtains the provider evidence; step 2 is an Order
+**no-op** because the same `reversalId` with the same `kind`, `paymentId` and `amount` is already recorded, regardless of
+the `recordedAt` the retry supplies (D, D4-3); and step 3 then applies once. Duplicate notifications and duplicate
+requests therefore yield one reversal (ADR-031 §6). This holds only if the Order save is version-checked (ADR-029), the
+provider-confirmed amount is re-obtained identically (a different re-obtained amount is a genuine anomaly, design OI-2),
+and the application treats a missing capture as recoverable (E).
+
+#### D4. Owner decisions of 2026-11-17 and what remains open
+
+| # | Decision | Status |
+|---|---|---|
+| D4-1 | v1 supports only `kind: "refund"`; `credit` and `adjustment` deferred; no `reference` in v1; `reversalId` = `RefundAttemptId` | **Owner-approved 2026-11-17** (C, B) |
+| D4-2 | R-1 scoped by `(paymentId, currency)`; single captured fact; no capture ⇒ zero; no implicit conversion; runtime `Money` incl. exponent; PAYMENT-PERSISTENCE-01 limitation accepted; missing-capture recovery requirement | **Owner-approved 2026-11-17** (E) |
+| D4-3 | Dedupe on `reversalId`; equality on `kind`, `paymentId`, `amount`; `recordedAt` excluded and caller-supplied; no system clock; amounts ≤ 0 rejected | **Owner-approved 2026-11-17** (C, D) |
+| D4-4 | Reasons `order:reversal_exceeds_captured` and `order:reversal_conflict`; no third reversal-specific reason without demonstrated need | **Owner-approved 2026-11-17** (D); reason for non-positive amounts not yet selected (below) |
+| D4-5 | Normalized collection; absent = empty; existing Orders hydrate empty; exponent limitation accepted | **Owner-approved 2026-11-17** (F) |
+| D4-6 | `attachPayment` currency guard excluded and deferred to a separate owner decision | **Owner-approved 2026-11-17** (C) |
+| D4-7 | Existing sequencing respected: Amendment 4 stays Proposed; `recordReversal` is implemented before acceptance; no notes added elsewhere | **Owner-approved 2026-11-17** (head of §2C) |
+| D4-8 | `recordReversal` permitted in every Order status | **Owner-approved 2026-11-17** (A) |
+
+These approvals fixed the direction of the draft; they were not themselves an acceptance of Amendment 4 (section I records
+the acceptance). Section H records the subsequent owner decisions of 2026-11-17 (P-1 … P-5, the HTTP mapping and
+CD-A … CD-E); it does not change D4-1 … D4-8.
+
+**No open points remain on P-1 … P-5 or CD-A … CD-E.** P-3 and P-4, previously open on the validation responsibility and its location,
+were resolved by owner decisions of 2026-11-17 (section H). This does not change D4-1 … D4-8.
+
+#### H. Remaining contract questions — analysis and owner decisions (2026-11-17)
+
+**Status of this section.** On 2026-11-17 the architecture owner approved P-1 … P-5 and the HTTP mapping; the two
+points initially left open (P-3: who rejects an empty `reversalId`; P-4: where `recordedAt` validity is enforced) were
+resolved by explicit owner confirmation the same day, and the corrective decisions CD-A … CD-E followed (below). Approved
+items are marked **[OWNER 2026-11-17]**. **[FACT]** marks an existing Comity contract or implementation fact verified
+read-only on 2026-11-17 in `community` and `commerce` (source paths are relative to those repositories); it is evidence,
+not a decision. These decisions do not change D4-1 … D4-8. They became normative through the acceptance of this
+amendment (section I).
+
+##### P-1. Reason for a zero reversal amount
+
+- **[FACT]** `OrderErrorReason` has ten members (`community/packages/order/src/errors/order.ts`). `invalid_quantity` is
+  messaged "Invalid order line quantity" and is raised only for line quantity, with `itemId` and `field: "quantity"`
+  (`community/packages/order/src/entities/order.ts`, `findLineStructureViolation`). No existing reason describes an
+  invalid reversal amount.
+- **[FACT]** `Money.create` rejects negative amounts only (`community/packages/pricing/src/value-objects/money.ts`), so a
+  negative `Money` cannot currently be constructed; a zero `Money` can. For a `Money` amount, D4-3's rule "less than or
+  equal to zero is rejected" therefore reduces to rejecting zero.
+- **[FACT]** `attachPayment` performs no amount-positivity check.
+- **[OWNER 2026-11-17, P-1]** The additive, reversal-specific reason **`order:invalid_reversal_amount`** is approved. It is
+  raised when the reversal `amount` is zero, with `details.field: "amount"`. `order:invalid_quantity` is not reused,
+  because it is scoped to order-line quantity, and no unrelated validation reason is introduced. The two reasons approved
+  under D4-4 are unchanged. This is the demonstrated need that D4-4 required for a third reversal-specific reason. Its HTTP
+  status is recorded separately below.
+
+##### P-2. `updatedAt`
+
+- **[FACT]** Every existing `Order` mutator sets `updatedAt = Instant.now()`, including `attachPayment` on an append; an
+  `attachPayment` no-op touches nothing (`community/packages/order/src/entities/order.ts`). `updatedAt` therefore means
+  "last time the aggregate changed", and is independent of the fact timestamps `authorizedAt` and `capturedAt`
+  (`community/packages/order/src/contracts/payment-snapshot.ts`).
+- **[FACT]** D-026 (`commerce/docs/architecture/11-decision-register.md`) states that new aggregates receive instants from
+  the caller, and Commerce 13 and 01 (G-15) record `Order`'s internal `Instant.now()` as the legacy pattern. D-026 names
+  new aggregates; `Order` pre-dates it, so it applies to `recordReversal` by analogy and not by letter.
+- **[FACT]** Precedent for one caller-supplied instant serving as both the domain fact and aggregate metadata:
+  `Fulfillment.complete(outcome, at)` records `at` as `completedAt` and `updatedAt`, `Fulfillment.create` and
+  `Entitlement.create` set `createdAt = updatedAt = at`, and a repeated completion is a true no-op
+  (`commerce/packages/fulfillment/src/entities/fulfillment.ts`; `commerce/packages/entitlement/src/entities/entitlement.ts`).
+- **[OWNER 2026-11-17, P-2]** On a successful reversal append, `updatedAt = recordedAt`. On an idempotent no-op the
+  aggregate is unchanged, including `updatedAt`. `recordReversal` reads no system clock. No separate aggregate timestamp
+  field or parameter is added, and no monotonicity rule or clamping is imposed.
+- **Consequence stated explicitly.** `updatedAt` may move **backwards** when a late recovery supplies a `recordedAt`
+  earlier than the current `updatedAt`. No monotonic rule exists and the supplied timestamp is not clamped.
+
+##### P-3. Identifier validation
+
+- **[FACT]** Order payment-fact identifiers are plain strings (`OrderPaymentSnapshot.paymentId?: string`,
+  `community/packages/order/src/contracts/payment-snapshot.ts`). `RefundAttemptId` is an application-level concept and is
+  not an exported Community value object; the refund contract carries it as `reference: string`
+  (`community/packages/payment/src/contracts/payment-refund.ts`).
+- **[FACT]** The application-side `OperationRecordId` (the `RefundAttemptId` of a refund) enforces non-empty input after
+  trimming; its 255-character bound is enforced by the store's `invalid_data` validation, not by the value object
+  (`commerce/examples/payment-attempts/src/application/identifiers.ts`). `OrderId` follows the same non-empty pattern.
+- **[FACT]** The existing Order contract establishes no general identifier format, maximum length or normalization rule,
+  and hydration copies payment facts without string validation.
+- **[OWNER 2026-11-17, P-3]** `reversalId` and `paymentId` remain plain `string`. No new value object, ID type, format,
+  length limit or normalization is introduced by this amendment.
+- **[OWNER 2026-11-17, P-3]** **Aggregate-level validation of `reversalId`.** `Order.recordReversal` rejects a
+  `reversalId` for which `reversalId.trim().length === 0`:
+  1. the validation occurs **before** identity lookup or idempotency evaluation;
+  2. the original value is stored **unchanged**; no non-empty identifier is trimmed, normalized or otherwise transformed;
+  3. hydrated historical reversals are **not** revalidated;
+  4. rejection uses the additive Order reason **`order:invalid_reversal_id`**, with `details.field: "reversalId"` and
+     HTTP status **400 Bad Request**.
+
+  *Rationale.* `reversalId` is the idempotency key of a financial reversal. An empty key could make distinct refunds be
+  treated as an idempotent no-op, compromising reversal accounting and the captured-amount invariant (R-1).
+- **[OWNER 2026-11-17, P-3]** No empty-ID validation rule is introduced for `paymentId`; it is not required by R-1, which
+  only matches it against recorded captured facts.
+
+##### P-4. `recordedAt` validity
+
+- **[FACT]** `Instant` (`community/packages/primitives/src/time/instant.ts`) wraps a number and validates nothing:
+  `fromEpochMilliseconds` accepts `NaN` and infinite values, and `toISOString()` throws for them. The current `Instant`
+  implementation **does not guarantee finiteness**.
+- **[FACT]** No existing Order or payment contract orders timestamps relative to capture; the refund flow may legitimately
+  record a refund after provider confirmation or after recovery (design §10.4); and Fulfillment documents that
+  chronological coherence is the application's responsibility (`commerce/docs/architecture/stage-4a-fulfillment-entitlement-integration.md`).
+- **[OWNER 2026-11-17, P-4]** `recordedAt` **must be a finite, serializable instant**. No chronological ordering of
+  `recordedAt` relative to the capture or any other event is imposed, and no age, future-time or clock-skew limit is
+  introduced. The caller/application remains responsible for temporal coherence.
+- **[OWNER 2026-11-17, P-4]** **Aggregate-level validation of `recordedAt`.** `Order.recordReversal` rejects an invalid
+  `recordedAt` **on the append path**:
+  1. with `const ms = recordedAt.epochMilliseconds`, the value is valid only when
+     `Number.isFinite(ms) && Math.abs(ms) <= 8.64e15`;
+  2. the validation occurs **only after** the operation is determined not to be an idempotent no-op; a no-op **neither
+     reads nor validates** `recordedAt`;
+  3. the application boundary has a **documented precondition** to supply a valid `Instant`;
+  4. integer milliseconds are **not** required, and no chronological ordering relative to the capture, age limit,
+     future-time restriction or clock-skew tolerance is introduced;
+  5. rejection uses the additive Order reason **`order:invalid_reversal_timestamp`**, with
+     `details.field: "recordedAt"` and HTTP status **400 Bad Request**;
+  6. the shared `Instant` contract and implementation, and `@comity/primitives`, are **not** modified by this amendment;
+     any future decision to strengthen `Instant` globally is a separate task. This must not be read as saying the current
+     `Instant` guarantees finiteness.
+
+  *Rationale.* P-2 assigns `recordedAt` to `updatedAt` after a successful append, so the aggregate must prevent an invalid
+  timestamp from corrupting its own state, including when invoked directly outside the application boundary.
+
+##### P-5. Currency exponent and `Money` comparison (D4-2 preserved)
+
+- **[FACT]** `Currency.equals` compares the currency code (`community/packages/pricing/src/value-objects/currency.ts`).
+  `Money.equals`, `add` and `subtract` rely on it (`.../money.ts`).
+- **[FACT]** A `Money` obtains its exponent from the current ISO currency table. Two currently constructible `Money`
+  instances with the same code therefore cannot carry different exponents.
+- **[FACT]** A structural `PriceCurrency`, such as the currency recorded by Order, can preserve an explicit exponent and
+  is compared by `(code, exponent)` in the existing Order implementation (`currencyEquals`;
+  `community/packages/order/src/contracts/order.ts`).
+- **[OWNER 2026-11-17, P-5]** The currency semantics approved by D4-2 (code and exponent) are preserved. `Money.equals`
+  and `Currency.equals` are **not** modified, and no special comparator is introduced inside `recordReversal`. As a
+  matter of implementation fact, `Money.equals` does **not** independently compare exponents: it compares the currency
+  code, and a current `Money` derives its exponent from the ISO table, so two instances with the same code cannot
+  represent different exponents. The accepted historical-exponent limitation (PAYMENT-PERSISTENCE-01) is preserved and
+  not reopened. If an implementation must compare a `Money` currency against a structural `PriceCurrency`, the existing
+  structural `(code, exponent)` semantics apply and that boundary is documented precisely; any comparison against the
+  Order currency touches the deferred `attachPayment` currency guard and stays within D4-6's deferral.
+
+##### HTTP mapping
+
+- **[FACT]** Order reasons carry their own HTTP status in `REASON_HTTP_STATUS`
+  (`community/packages/order/src/errors/order.ts`): conflict-type reasons map to 409 and input-validity reasons to 400. The
+  transport layer uses the status supplied by the domain error metadata and defaults to 500
+  (`community/packages/http-hono/src/internal/map-error.ts`).
+- **[OWNER 2026-11-17]** The mapping is approved:
+
+  | Reason | `details.field` | HTTP |
+  |---|---|---:|
+  | `order:reversal_exceeds_captured` | `amount` | 409 Conflict |
+  | `order:reversal_conflict` | `reversals` | 409 Conflict |
+  | `order:invalid_reversal_amount` | `amount` | 400 Bad Request |
+  | `order:invalid_reversal_id` | `reversalId` | 400 Bad Request |
+  | `order:invalid_reversal_timestamp` | `recordedAt` | 400 Bad Request |
+  | `order:invalid_reversal_kind` | `kind` | 400 Bad Request |
+
+  These are the six reversal-related reasons. The mapping is not extended to unrelated errors, introduces no HTTP
+  dependency into the domain package, and does not change the semantics of the D4-4 reasons. The statuses are carried by
+  the domain error metadata, as for the existing reasons.
+
+##### Corrective decisions CD-A … CD-E (2026-11-17)
+
+Approved by the architecture owner after a read-only contract review of the first implementation.
+
+- **[OWNER 2026-11-17, CD-A]** **Duplicate reversal IDs in `Order.create`.** `Order.create` validates supplied initial
+  `reversals` as new state, in the supplied order, with the per-fact rules of `recordReversal`. A `reversalId` that
+  appears more than once is rejected, whether the entries are identical or different, with `order:reversal_conflict` and
+  `details.field: "reversals"`. Nothing is deduplicated or preserved. Valid unique reversals keep their order. The
+  constructor restores historical reversals verbatim and validates nothing.
+- **[OWNER 2026-11-17, CD-B]** **At most one captured fact per `paymentId`.** `Order.create` rejects more than one
+  `captured` fact for the same `paymentId`, identical or not, with the existing `order:payment_fact_conflict`
+  (`details.field: "payments"`); this tightens O-9 for `create` and changes nothing in `attachPayment` or the progression
+  of §3. Because hydration preserves history unvalidated, `recordReversal` fails conservatively with
+  `order:reversal_conflict` (`details.field: "reversals"`) when the aggregate holds more than one `captured` fact for the
+  reversal's `paymentId`; the captured facts are never summed and none is selected. The guard runs only for a genuinely
+  new reversal, after the `recordedAt` check and before R-1, and changes no state. The conflict code is deliberately
+  reused although the ambiguity originates in payment facts.
+- **[OWNER 2026-11-17, CD-C]** **Runtime reversal kind.** For a genuinely new reversal, a `kind` other than `"refund"`
+  at runtime is rejected with the additive reason `order:invalid_reversal_kind`, `details.field: "kind"`, HTTP 400.
+  Identity is resolved first: an existing `reversalId` keeps its no-op or conflict result. Hydrated reversals are not
+  validated.
+- **[OWNER 2026-11-17, CD-D]** **Validation order** is the one in section D. Its position of the kind, amount,
+  `recordedAt` and uniqueness checks among the append-path checks is normative.
+- **[OWNER 2026-11-17, CD-E]** **Contract clarity.** The `Order.create` and `Order.recordReversal` documentation in the
+  implementation and package documentation describes the no-op semantics, the validation order, the verbatim hydration
+  and the mutation guarantee above.
+
+##### Implementation status
+
+- **[FACT]** `Order.recordReversal`, the reversals collection, `Order.create` validation of initial reversals and the six
+  reasons are implemented in `community/packages/order`, with tests, in the Community working tree at HEAD `038ed65`
+  (uncommitted and unreleased when this amendment was accepted).
+- The persistence adapter (Commerce `order-sql`), refund orchestration, the PSP, the scheduler and every other
+  application workflow are **not** implemented by this amendment, and **gate G-3 of the Payment Attempt Store design is
+  not satisfied** by it.
+
+#### I. Acceptance record
+
+- **Accepted 2026-11-17**, by the architecture owner's explicit authorization in the closure work package of that date,
+  conditional on completion of the changes and checks below. The date is the date of the status transition.
+- **Criteria met.** (1) `Order.recordReversal` implemented (D4-7). (2) The owner decisions D4-1 … D4-8, P-1 … P-5, the
+  HTTP mapping and CD-A … CD-E are recorded with provenance. (3) An independent review was reported by the architecture
+  owner; its findings F-2 (package design document still describing the reversals collection as deferred) and F-3 (no
+  direct `Order.create` tests for a zero amount and an invalid timestamp) were resolved on 2026-11-17, and F-4 (the
+  captured-history guard using `order:reversal_conflict`) is the approved CD-B behaviour. (4) The implementation was
+  re-checked against the decisions on 2026-11-17, and the Community package checks passed: `vitest run --coverage`
+  (204 passed, 1 skipped), `tsc --noEmit`, `eslint`, `prettier --check` on the changed files, the package build and
+  `git diff --check`.
+- **Scope.** The acceptance is of this amendment only. It does not change ADR-029, ADR-031 or ADR-037, which are
+  unmodified, and it does not claim that any commit, release or Commerce integration exists.
+
+**Unchanged by this amendment.** ADR-029, ADR-031 and ADR-037; the payment-fact progression (§3) and `attachPayment`
+(CD-B only tightens `Order.create`); the §2 inventory and the §5 exclusion except as annotated above; AM-5a…AM-5d;
+Amendments 1–3; this ADR's status line (`Accepted`) and the 2026-11-05 acceptance record.
+
 ### 3. Invariants and the payment-fact progression
 
 The aggregate enforces O-1…O-9. **[Amendment 3 — §2B(C): O-11 is withdrawn from generic Order.]** (Authoritative
@@ -310,7 +759,7 @@ fixes only the aggregate-side shape of `version`, so it is shaped once; it does 
 `cancel()` stays argument-free and the application records why); `bundle` subject variant and `BundleGroupRef`;
 `stale_version` / `saveWithVersion` / `VersionedRepository`; `origin` / `OrderOrigin` (and `amendment_of`: amendments are
 unsupported in v0, reintroduced additively with the first capability that needs them); `Order.recordReversal` and the
-reversals collection (deferred, gated on ADR-031/C4); any `@comity/offering` / `@comity/commerce-*` package. These
+reversals collection (deferred, gated on ADR-031/C4 — **[Amendment 4 — §2C, accepted 2026-11-17: no longer excluded]**); any `@comity/offering` / `@comity/commerce-*` package. These
 exclusions are part of the decision: they keep the one free breaking change minimal.
 
 ### 6. Relationship to ADR-029 / ADR-030 / ADR-031 (not absorbed)

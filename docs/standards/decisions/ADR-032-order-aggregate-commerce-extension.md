@@ -301,7 +301,7 @@ The aggregate carries `version` read-only and **never** increments it. A newly c
 `version: 0`; hydration restores the persisted value verbatim. The repository semantics (insert → `1`; compare-and-set
 update → `+1` exactly once per successful save; failed check persists nothing; `repository:conflict`) are owned by the
 **separate Proposed ADR-029** and by the eventual repository implementation. **Until ADR-029 is accepted and a conforming
-adapter exists, `version` is advisory** and no production write path that mutates money or rights may ship. This ADR
+adapter exists, `version` is advisory** [_update 2026-11-12: ADR-029 is now Accepted; whether an adapter's evidence satisfies the application's production gate is decided by that gate_] and no production write path that mutates money or rights may ship. This ADR
 fixes only the aggregate-side shape of `version`, so it is shaped once; it does not implement ADR-029.
 
 ### 5. Explicit exclusions (not in Phase A)

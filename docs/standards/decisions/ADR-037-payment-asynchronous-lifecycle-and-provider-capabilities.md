@@ -33,7 +33,7 @@ also complete later than the call that requested them.
   `OrderPaymentSnapshot.reference` (`order/src/contracts/order.ts`, `line.ts`, `payment-snapshot.ts`). The Order's stable identity is `OrderId`
   (`order/src/value-objects/order-id.ts`).
 - `Currency.create(code)` and `Money.create(amount: bigint, currency)` are public, `Result`-returning APIs of `@comity/pricing`.
-- ADR-008 registers `payment → pricing` as a **type-only** edge. ADR-029 (C1) and ADR-016 are **Proposed**; ADR-030 (C3), ADR-031 (C4) and this ADR are **Accepted**.
+- ADR-008 registers `payment → pricing` as a **type-only** edge. ADR-029 (C1) and ADR-016 are **Proposed** [_update 2026-11-12: ADR-029 is now **Accepted**; ADR-016 remains Proposed_]; ADR-030 (C3), ADR-031 (C4) and this ADR are **Accepted**.
 - No payment service provider (PSP) has been selected in any Comity repository.
 
 ## Problem statement

@@ -396,6 +396,16 @@ Such repositories:
 
 For example, a catalog repository that exposes a read projection over an external commerce backend is valid without `save` or `remove`.
 
+### Versioned Repositories
+
+An aggregate that carries money or rights MAY opt in to optimistic concurrency by declaring `version` in its `State`. The normative contract is **ADR-029**; this section only states how it fits the conventions above.
+
+- The aggregate carries `version` and restores it verbatim on hydration. **Domain methods never increment it.**
+- The **repository** owns the persistence-side compare-and-swap and the version advancement. A stale or duplicate write is `repository:conflict`; an invalid supplied version is `repository:invalid_data`.
+- A successful `save` returns `Result<void, RepositoryError>` and does **not** mutate the in-memory aggregate: it keeps its pre-save version. The caller **reloads** it through the repository when the new persisted version is needed.
+- A `conflict` is **not retried** by the repository; reload-and-retry is an application decision.
+- Adapters follow `docs/standards/repository-conformance.md`.
+
 ---
 
 # 7. Repository Return Types
@@ -437,7 +447,7 @@ operation
 
 Both fields are mandatory.
 
-Repository errors describe infrastructure failures.
+Repository errors describe infrastructure failures, and, for versioned repositories, the stale-write outcome `conflict` (ADR-029). A `conflict` is a persistence-concurrency result, never an infrastructure failure, and an infrastructure failure never surfaces as `conflict`.
 
 They do not represent business validation failures.
 

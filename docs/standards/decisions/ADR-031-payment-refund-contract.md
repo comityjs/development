@@ -151,7 +151,7 @@ subject to the existing layering rules. This changes no refund behaviour; the no
 
 ### 6. Duplicate notifications and asynchronous completion
 
-- A `refund` notification (ADR-037) carries `provider`, `eventId`, `paymentId`, `refundId`, `status`, an amount with the same presence semantics as `RefundOutcome` (mandatory
+- A `refund` notification (ADR-037) carries `provider`, `eventId` when the provider supplies one (ADR-037 §4 rule 5), `paymentId`, `refundId`, `status`, an amount with the same presence semantics as `RefundOutcome` (mandatory
   and valid on `succeeded`; valid, absent or flagged `providerAmountUnusable` on `pending` and `failed`) and, when the provider supplies it, the `reference`. It is correlated by `(binding, refundId)`, then by `reference` as `RefundAttemptId`; tenant and order come from the refund-attempt record,
   never from the payload. An uncorrelatable notification is not acknowledged (direct strategy) or parked (inbox strategy).
 - **Duplicate provider notifications and duplicate application requests MUST NOT create duplicate Order reversal facts.** Deduplication is by the stable

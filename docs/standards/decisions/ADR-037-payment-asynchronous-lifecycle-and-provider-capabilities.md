@@ -8,6 +8,8 @@
 >   no-echo rule, the `ReportedAmount` representation and the `unrepresentable_success` reason with typed details. Status and every other decision of this ADR are unchanged.
 > - **Amended by the owner-approved decision OD-F10 (resolution of incomplete asynchronous attempts).** §5 adds the `incompleteResolution` descriptor field and rule C-11; §6 records the
 >   authoritative cancellation and expiry resolution sequences. Status and every other decision of this ADR are unchanged (rules C-1 to C-10, P5, A1 to A4 and W-1 to W-7 included).
+> - **Amended by decision OD-F21 (notification identity, AMD-ID), recorded and accepted 2026-11-21 on the instruction of the user** (see "Amendment records" below). §3, §4, §7 and §8b separate the application-assigned delivery identity, the optional provider event identity and the logical occurrence. Status and every other decision of this ADR are unchanged.
+> - **Amended by decision OD-F13 (notification representation and verification boundary, AMD-SIG), recorded and accepted 2026-11-21 on the instruction of the user** (see "Amendment records" below). §2, §3, §7 and §8b add the `other` notification `subject`, the responsibilities of `verify` and the inbox processing rules. Status and every other decision of this ADR are unchanged.
 
 **Status:** Accepted
 
@@ -95,7 +97,7 @@ Authority rules:
 1. A command result is authoritative for what it reports when it was produced. A `PaymentError` of reason `internal_error` from a command means
    **outcome unknown**, never "failed".
 2. A lookup result is authoritative for the **current** state of the payment, operation or refund.
-3. A verified notification is authoritative that the transition it reports **occurred**. It is not authoritative that it is the current state.
+3. A verified notification is authoritative that the transition it reports **occurred**. It is not authoritative that it is the current state. A verified `other` notification reports no transition; when it carries a `subject` (§3) it identifies only what to look up.
 4. Unverified input (redirect returns, client callbacks, unverified bodies) never changes state. It may only trigger a lookup.
 5. Ordering is never derived from timestamps. Order between facts comes only from the Order progression (`authorized → captured | failed | cancelled`).
    `occurredAt` on a notification is informational.
@@ -181,13 +183,18 @@ export interface PaymentCancelProvider { cancel(r: { paymentId: string; idempote
 export interface PaymentOperationLookup { retrieveOperation(operationId: string): Promise<Result<PaymentOperationOutcome | null, PaymentError>> }
 // PaymentRefundProvider (refund, retrieveRefund), RefundRequest and RefundOutcome: ADR-031.
 
+export type PaymentNotificationSubject =                 // what an `other` notification concerns; never a state (AMD-SIG)
+  | { kind: "payment"; paymentId: string; reference?: string }
+  | { kind: "refund"; refundId: string; paymentId?: string; reference?: string }
+  | { kind: "payment_or_refund"; providerId: string; reference?: string };
+
 export type PaymentNotification =                        // verification happens BEFORE this type exists (§7)
-  | { kind: "payment"; provider: string; eventId: string; occurredAt?: Instant; paymentId: string; reference?: string; state: "authorized" | "captured"; amount: Money }
-  | (ReportedAmount & { kind: "payment"; provider: string; eventId: string; occurredAt?: Instant; paymentId: string; reference?: string; state: "failed" | "cancelled" })
-  | { kind: "refund"; provider: string; eventId: string; occurredAt?: Instant; paymentId: string; refundId: string; reference?: string; status: "succeeded"; amount: Money }
-  | (ReportedAmount & { kind: "refund"; provider: string; eventId: string; occurredAt?: Instant; paymentId: string; refundId: string; reference?: string; status: "pending" | "failed" })
-  | { kind: "operation"; provider: string; eventId: string; occurredAt?: Instant; operation: "capture" | "cancel"; paymentId: string; operationId: string; status: "succeeded" | "failed" }
-  | { kind: "other"; provider: string; eventId: string; occurredAt?: Instant; providerEventType: string };
+  | { kind: "payment"; provider: string; eventId?: string; occurredAt?: Instant; paymentId: string; reference?: string; state: "authorized" | "captured"; amount: Money }
+  | (ReportedAmount & { kind: "payment"; provider: string; eventId?: string; occurredAt?: Instant; paymentId: string; reference?: string; state: "failed" | "cancelled" })
+  | { kind: "refund"; provider: string; eventId?: string; occurredAt?: Instant; paymentId: string; refundId: string; reference?: string; status: "succeeded"; amount: Money }
+  | (ReportedAmount & { kind: "refund"; provider: string; eventId?: string; occurredAt?: Instant; paymentId: string; refundId: string; reference?: string; status: "pending" | "failed" })
+  | { kind: "operation"; provider: string; eventId?: string; occurredAt?: Instant; operation: "capture" | "cancel"; paymentId: string; operationId: string; status: "succeeded" | "failed" }
+  | { kind: "other"; provider: string; eventId?: string; occurredAt?: Instant; providerEventType: string; subject?: PaymentNotificationSubject };
 
 export interface PaymentNotificationVerifier {
   verify(input: { body: Uint8Array; headers: Readonly<Record<string, string>> }): Promise<Result<ReadonlyArray<PaymentNotification>, PaymentError>>;
@@ -209,10 +216,19 @@ export interface UnrepresentableSuccessDetails {
   readonly operationId?: string;
   readonly refundId?: string;
   readonly reference?: string;               // fallback only, never a substitute for an available identifier
-  readonly eventId?: string;                 // mandatory for notifications
+  readonly eventId?: string;                 // when the provider supplied one; a notification anomaly is otherwise correlated by the application's DeliveryId (§7 ID-7)
 }
 ```
 
+- **`eventId` is the provider's event identifier and is optional (AMD-ID).** An adapter sets it only when the provider's delivery explicitly carries an identifier of the event, and copies it unchanged. An adapter MUST NOT synthesize it from a body digest, a timestamp, a counter, a resource identifier or any combination. It identifies a provider event, never a payment, operation, refund or the application's delivery. Its absence means only that the provider supplied none.
+- **`other` asserts no state and no amount (AMD-SIG).** It carries a verified provider event that the adapter cannot, or need not, normalize into a state kind.
+- **`subject` names what to look up, never what happened.** The variants are a discriminated union, so contradictory combinations cannot be constructed (the OD-F9 precedent). An adapter uses the narrowest variant the delivery itself establishes, and MUST NOT guess the kind:
+  - `payment`: the delivery identifies a provider payment.
+  - `refund`: the delivery identifies a provider refund (and, when stated, its payment).
+  - `payment_or_refund`: the delivery identifies a provider object of this binding that is either a payment or a refund, and does not state which.
+- **`reference` inside `subject`** is the application reference the provider echoed, copied as supplied. It may be a `PaymentAttemptId` or a `RefundAttemptId`, and is a correlation fallback only (§4 rule 4).
+- **`providerEventType`** is opaque provider vocabulary. It is informational and never a source of state.
+- **No raw payload.** The normalized type carries no raw provider payload; the application retains the raw delivery (§7 ID-3). Provider-specific fields stay inside the adapter.
 - The outcome discriminant is `state` (not `status`), so a payment state cannot be confused with an `OperationStatus`.
 - `paymentId` is **required** for `authorized` and `captured` (closes ADR-030 Q4 and ADR-031 Q2). It is optional for `failed`, `cancelled`, `pending`
   and `requires_action`, because the provider may not have created a payment object.
@@ -234,7 +250,8 @@ The following identifiers are distinct and MUST NOT be used interchangeably.
 | `OrderId` | Application | global (tenant-scoped storage) | Order; attempt records | **No** | is the Order |
 | `PaymentAttemptId` | Application (opaque, globally unique) | global | Payment-attempt record | **Yes**, as the payment `reference` | `OrderPaymentSnapshot.reference` of that attempt's facts |
 | `ProviderPaymentId` (`paymentId`) | Provider | binding | Attempt record (unique `(binding, paymentId)`); Order facts | — | `paymentId` |
-| `ProviderEventId` (`eventId`) | Provider | binding | Only if an inbox is used | — | **Never** |
+| `DeliveryId` | Application, at receipt (opaque, unguessable, never derived from content) | binding | The inbox delivery record (strategy C) or the §8b retention record | **No** | **Never** |
+| `ProviderEventId` (`eventId`) | Provider, **only when supplied** | binding | When supplied: on the inbox record | — | **Never** |
 | `ProviderOperationId` (`operationId`) | Provider | binding | On the **operation record of the one capture or cancel invocation** it identifies, correlated with the `PaymentAttemptId` and the **operation type** (capture or cancel) | — | Never |
 | Operation idempotency key | Application | binding | Attempt record, **before** the call | Yes (provider's native key) | Never |
 | `RefundAttemptId` / `refundId` | Application / Provider | see ADR-031 | see ADR-031 | see ADR-031 | see ADR-031 |
@@ -258,6 +275,14 @@ Rules:
 4. Correlation MUST NOT depend on the PSP echoing `reference`. A payment notification is correlated by `(binding, paymentId)` first, then by the echoed
    `reference` as `PaymentAttemptId`. Tenant and order are taken from the attempt record, **never from the payload**. A notification that cannot be
    correlated is not acknowledged (direct strategy) or parked (inbox strategy) until the attempt learns its `paymentId`.
+5. **Three identities, never interchangeable (AMD-ID).**
+   - (a) The **delivery identity** (`DeliveryId`) identifies one HTTP delivery received on one binding's route; the application assigns it before persisting.
+   - (b) The **provider event identity** (`eventId`) identifies one provider event, and exists only when the provider supplies it.
+   - (c) A **logical occurrence** is the business fact a delivery may concern. Without a provider event identity, the application cannot tell a redelivery from a repeated provider event, and does not try to; events that change no state establish no logical occurrence and remain visible only as retained deliveries. The application establishes a logical occurrence only where an existing business identity keys it and authoritative evidence (§2 rules 2–3) supports it:
+     - an Order fact by `(paymentId, status)` (§8);
+     - a reversal by `RefundAttemptId` (ADR-031 §7);
+     - a state transition of one attempt or operation record (ADR-030 §8 A2).
+   - (d) **Separation.** A delivery identity is never used as a provider event identity or as a logical-occurrence identity. A provider event identity is never assumed to exist. Two deliveries are never taken to concern the same logical occurrence, or different ones, merely because their bodies are equal or differ.
 
 **Terminology: `provider` is the binding identifier.** The `provider` field on Payment outcomes, notifications and error details carries the
 `PaymentProviderBinding.id` of the configured provider instance (adapter plus merchant account) that scopes `paymentId`, `operationId`, `refundId`, `eventId` and
@@ -456,9 +481,31 @@ Order is cancelled, or a notification has not arrived. Elapsed time only determi
 
 ### 7. Notifications, webhooks and reconciliation
 
-**Verification boundary.** Signature verification, secrets, timestamp tolerance and payload parsing belong to the **provider adapter**, behind
-`PaymentNotificationVerifier`. The Core package defines only the port and the normalized output; it contains no cryptography, no secrets and no HTTP
-framework types. The application's HTTP layer passes the **raw bytes and headers** through unchanged, because signatures cover raw bytes.
+**Verification boundary (AMD-SIG).** Signature verification, secrets, timestamp tolerance and payload parsing belong to the provider adapter, behind `PaymentNotificationVerifier`. The Core package defines only the port and the normalized output; it contains no cryptography, no secrets and no HTTP framework types. The application's HTTP layer passes the raw bytes and headers through unchanged, because signatures cover raw bytes. `verify`:
+
+- **VR-1** establishes authenticity (signature, secret rotation, timestamp tolerance) before any delivery content is trusted or normalized. Content may be parsed before that point only to locate or compute the authenticity material;
+- **VR-2** makes no call to the provider and reads or writes no application state. Provider lookup belongs to the application's processing (PR-4). A lookup in `verify` would make acknowledgement depend on provider availability, and `verify` has no failure that can express it;
+- **VR-3** is deterministic for a given delivery, configuration and clock reading;
+- **VR-4** returns `invalid_notification` with cause `signature` whenever authenticity is not positively established for the whole delivery: failed, missing, expired, or not evaluable. It returns cause `malformed` only after authenticity is established and only when the adapter cannot determine the delivery's event boundaries or event types. An identifiable event is never `malformed`, whatever fields it lacks;
+- **VR-5** normalizes each provider event into the narrowest kind its own content authoritatively supports. A state kind is used only when the delivery carries the state and, for settled success, a valid provider-confirmed amount. Otherwise, unless VR-9 applies, the event is `other`, with the narrowest truthful `subject` or none;
+- **VR-6** never fabricates an identifier, state, amount or kind absent from the delivery (OD-F9 no-echo applies), and never sets `eventId` unless the provider supplied one;
+- **VR-7** maps an event type it does not recognize to `other`; this is not an error;
+- **VR-8** never reports a lookup, persistence or processing condition, since it performs none;
+- **VR-9** returns `unrepresentable_success` (§8b) only after authenticity is established, when an event is a state event for a settled success whose mandatory identifiers are present and whose financial data, declared by the provider's documented payload schema for that event type, is absent or unusable. The typed details describe the first such event in delivery order, with `provider` equal to the binding. `verify` returns no reason other than `invalid_notification` and `unrepresentable_success`;
+- **VR-10** classifies every identifiable event through the adapter's documented event mapping, which extends §2 rule 6 and is pinned to the provider API version. A type may be mapped as a **state event** only if its documented payload schema carries every field its state kind requires, including the financial fields of a settled success. Every other documented type is a **signal event**. In order:
+  - An unmapped type becomes `other` without `subject`.
+  - A signal event becomes `other`, with its `subject` only if the source field is present and valid.
+  - A state event meeting VR-9 makes the delivery fail as a whole under VR-9.
+  - A state event with every required field valid becomes its state kind. A confirmed failure, or a pending refund, with an unusable amount carries `providerAmountUnusable: true` (§8b classification rules 3 and 4).
+  - Any other state event becomes `other`, with the narrowest truthful `subject` built from identifiers present: a missing or invalid required field, an unmapped state value, or a settled success missing its mandatory identifier (case A, §8b classification rule 2).
+  - Fields absent from the pinned schema are ignored. If no event meets VR-9, every event is returned in delivery order.
+
+No error reason is added. `invalid_notification` keeps its reason and both causes; only their meaning is made exact (VR-4).
+
+- `signature`: the delivery is rejected. The application answers non-2xx and never processes it.
+- `malformed`: the delivery is authentic. The application retains it (strategy C: quarantine) and never processes it automatically.
+
+Neither cause means that a lookup failed. No notification error states anything about whether money moved. An exception thrown by `verify`, or any reason other than `invalid_notification` and `unrepresentable_success`, means verification did not complete.
 
 **Delivery guarantees are an unresolved external dependency.** No PSP is selected. The following are therefore **assumptions, not verified facts**, and
 MUST be verified against the selected PSP before the direct strategy is adopted:
@@ -477,8 +524,7 @@ MUST be verified against the selected PSP before the direct strategy is adopted:
 inbox, acknowledged on insert and processed asynchronously):
 
 - A alone is inadequate: a provider that stops retrying, or a permanently missed webhook, loses the event.
-- **An inbox does not recover events that never arrived.** It adds decoupled acknowledgement, an audit trail, replay after a processing bug and
-  serialization of duplicate deliveries (unique `(binding, eventId)`). Only reconciliation recovers a missed event, and only for operations the application
+- **An inbox does not recover events that never arrived.** It adds decoupled acknowledgement, an audit trail, replay after a processing bug and, **when the provider supplies an `eventId`**, serialization of that event's redeliveries. Without a provider event identity, redeliveries are stored as distinct deliveries and their effects are made idempotent by the rules below, not by deduplication. Only reconciliation recovers a missed event, and only for operations the application
   knows about.
 - **Decision (conditional).** Direct processing with **mandatory reconciliation** (B) is adopted **only if W-1 to W-4 are verified** for the selected PSP.
   A durable inbox (C), with reconciliation kept, is the fallback when verified guarantees are insufficient. The final choice is therefore **conditional on
@@ -487,6 +533,124 @@ inbox, acknowledged on insert and processed asynchronously):
   replay of provider-originated events.
 - **A PSP without adequate lookup for the relevant payment and refund operations (W-4) is incompatible** with the recovery model. An inbox does not remove
   this requirement, because an inbox cannot store what never arrived.
+
+**Inbox identity and duplicate handling (strategy C; AMD-ID).**
+
+- **ID-1 Persistence identity.** Every delivery the inbox accepts is persisted under `(binding, DeliveryId)`, which is unique. The binding comes from the route the delivery arrived on, never from the payload. The application generates `DeliveryId` at receipt from a collision-resistant random source (at least 122 random bits, or an equivalent scheme); it is never derived from the delivery's content.
+- **ID-2 Acknowledgement.** The delivery is acknowledged (2xx) only after the transaction persisting it has committed; any failure to persist returns non-2xx. Acknowledgement never depends on a provider lookup or on processing.
+- **ID-3 Content.** The inbox record holds:
+  - the raw body bytes and headers;
+  - the receipt time (application clock) and the binding;
+  - the verification outcome;
+  - the normalized notifications returned by `verify`, in order, each addressed as `(DeliveryId, index)`;
+  - each notification's `eventId` when supplied.
+- **ID-4 Supplied provider event identity.** At most one notification per `(binding, eventId)` is processed. A later notification with the same `(binding, eventId)` is recorded as a redelivery of the first and is not processed again; its delivery is still persisted. An `eventId` is relied on only within the uniqueness scope the adapter documents for that provider.
+- **ID-5 No provider event identity.** No delivery or notification is discarded or merged. Each is processed. Detecting redeliveries is not required for correctness and is not guaranteed; duplicate business effects are prevented only by effect idempotency:
+  - lookup authority (§2 rule 2);
+  - monotonic, version-checked application (ADR-030 §8 A2);
+  - Order fact deduplication on `(paymentId, status)` (§8);
+  - reversal deduplication by `RefundAttemptId` (ADR-031 §6);
+  - anomaly occurrence rules (ID-7).
+- **ID-6 Payload digests.** An application MAY store a cryptographic digest of the raw body as a non-unique attribute, for diagnostics and to coalesce the _scheduling_ of lookups for one subject. Because equal bodies may carry distinct provider events, and redeliveries may differ in body, a digest MUST NOT be:
+  - a uniqueness constraint;
+  - an identity;
+  - a reason to skip persistence or processing;
+  - an anomaly occurrence.
+- **ID-7 Anomaly occurrence.** An anomaly occurrence identifies a condition observed on one application record. It is not a provider event and not a business occurrence.
+  - When the provider supplied an `eventId`, a notification-sourced anomaly uses it: one provider event and its redeliveries.
+  - Otherwise it uses the record-scoped occurrence rule of the same source category as an authoritative lookup of that record: the operation record alone, or the record with the contradicting value class and value. Repeated observations of the same condition on the same record therefore yield one anomaly, by design, and different contradicting values yield different anomalies.
+  - It is never derived from `DeliveryId` or from a body digest.
+  - Every contributing delivery stays individually retained (ID-3), so collapsing observations into one anomaly loses no evidence.
+- **ID-8 Tenant isolation.** Inbox records are binding-scoped system records:
+  - The tenant is unknown at receipt and is never taken from the payload. It is obtained only from the correlated application record (§4 rule 4).
+  - Inbox content MUST NOT be reachable through tenant-scoped access paths.
+  - A binding's route accepts only deliveries verified with that binding's credentials.
+- **ID-9 Unestablished identity.** Nothing is dropped:
+  - A verified notification that cannot be correlated is parked (§4 rule 4) and re-attempted.
+  - A notification that carries no correlation identity is retained with a disposition.
+  - An authentic delivery whose event boundaries or event types cannot be determined is quarantined (VR-4, PR-2).
+  - Each such record is visible to attributed manual handling.
+- **ID-10 Guarantees and limits.**
+  - **Guaranteed:** (a) an acknowledged delivery is durably retained; (b) duplicate deliveries cause no duplicate business effect (ID-5); (c) no delivery is silently discarded.
+  - **Not guaranteed:**
+    - exactly-once delivery or processing;
+    - recognition that two deliveries carry the same provider event when no `eventId` exists;
+    - recovery of deliveries never sent (W-1) or of events the provider originates itself (§8b rule 7);
+    - observation of every intermediate state: a lookup returns the current state (§2 rule 5);
+    - distinguishing two provider-side occurrences that report the same subject and leave the same authoritative state;
+    - recording a separate fact for an intermediate state already superseded when the lookup runs.
+
+**Inbox processing (strategy C; AMD-SIG).**
+
+- **PR-1 Sequence.** Receive → verify (VR) → persist (ID-1, ID-3) → acknowledge (ID-2) → process asynchronously → resolve by authoritative lookup where needed → apply idempotently and monotonically → reconcile independently (§7 Reconciliation).
+- **PR-2 Ingress outcomes.** The ingress calls `verify` once per delivery. Precedence, applied once per delivery:
+  1. Authenticity not positively established → `signature`.
+  2. Event boundaries or types undeterminable → `malformed`.
+  3. Each event is classified under VR-10.
+  4. If any event meets VR-9 → `unrepresentable_success` for the first such event, and the delivery fails as a whole.
+  5. Otherwise → success, with every event in delivery order.
+
+  | # | Condition | `verify` result | Inbox status | Persistence and acknowledgement | Afterwards |
+  |---|---|---|---|---|---|
+  | 1 | Authenticity not established (invalid, missing, expired, unevaluable) | `invalid_notification` / `signature` | None | Nothing in the inbox; non-2xx | Rate alert; no lookup. A bounded forensic sample MAY be kept outside the inbox |
+  | 2 | Authentic; boundaries or event types undeterminable | `invalid_notification` / `malformed` | `quarantined` | Committed, then 2xx | Alert; attributed review of the retained delivery; terminal per PR-12 |
+  | 3 | State event, required fields valid (optional fields may be missing) | Success: state kind | `accepted` | Committed, then 2xx | PR-3 onward |
+  | 4 | Confirmed failure, or pending refund, with an unusable amount | Success: state kind with `providerAmountUnusable: true` (§8b classification rules 3 and 4) | `accepted` | Committed, then 2xx | PR-3 onward |
+  | 5 | Signal event | Success: `other`, with a `subject` if its source field is valid | `accepted` | Committed, then 2xx | PR-3 (lookup, or `no_subject`) |
+  | 6 | Unmapped event type | Success: `other` without `subject` | `accepted` | Committed, then 2xx | `no_subject`, retained |
+  | 7 | Identifiable event, not under VR-9, with missing or invalid required fields, an unmapped state value, or a settled success missing its identifier | Success: `other` with the narrowest truthful `subject`, or none | `accepted` | Committed, then 2xx | PR-3 |
+  | 8 | Identifier of undetermined kind (payment or refund; or possibly an operation) | Success: `other` with `payment_or_refund`, or without `subject` | `accepted` | Committed, then 2xx | PR-3, including `ambiguous` |
+  | 9 | Settled success, identifiers present, schema-declared financial data absent or unusable | `unrepresentable_success` (first such event) | `case_b` | Committed, then 2xx | Anomaly (PR-12); review of every event of the delivery; terminal per PR-12 |
+  | 10 | Several events, none under VR-9 | Success: all events in order | `accepted` | Committed, then 2xx | One notification record each |
+  | 11 | Several events, at least one under VR-9 | As row 9 | `case_b` | Committed, then 2xx | As row 9; every sibling dispositioned |
+  | 12 | `verify` throws, returns another reason, returns case B details with `provider` ≠ the binding or a missing identifier, or returns a notification with `provider` ≠ the binding | Verification did not complete | None | Nothing; non-2xx | Verification-fault alert |
+  | 13 | Any persisting row whose commit fails | — | None committed | Non-2xx | Provider redelivery only (W-1, unverified) |
+
+- **PR-3 Correlation of each notification.** A notification is correlated only after **every** correlation read it requires has completed. A *correlation read* is a local read of the application's persisted provider identities; a *provider lookup* is `retrieve` or `retrieveRefund`. A provider identifier is not assumed disjoint across payment and refund identities. A read that fails is never taken as "no match".
+  - **State kinds:** as §4 rule 4 and ADR-031 §6.
+  - **`subject.kind` `payment` or `refund`:** one read of that identity kind.
+  - **`payment_or_refund`:** one read of each identity kind. **Both** are required, and the outcome follows this matrix:
+
+    | Payment read | Refund read | Behaviour |
+    |---|---|---|
+    | Exactly one match | No match | Correlated to the payment attempt; provider lookup `retrieve(providerId)` |
+    | No match | Exactly one match | Correlated to the refund attempt; provider lookup `retrieveRefund(providerId)` |
+    | Exactly one match | Exactly one match | Disposition `ambiguous`: no provider lookup, no precedence, immediate alert. Both candidate records are recorded on the notification's processing record |
+    | No match | No match | Reference fallback (below); otherwise disposition `uncorrelated` and re-attempted until the parking horizon (PR-11), then `stalled` and alerted |
+    | Unavailable (either read fails) | Any | No decision. The notification stays `pending`, with backoff (PR-5) |
+
+  - **Reference fallback.** Only when every identity read matched nothing and `subject.reference` is present: read both reference kinds (`PaymentAttemptId`, `RefundAttemptId`), applying the same matrix. A single match selects the record whose provider lookup follows. A reference never binds a provider identity by itself: the lookup result is applied through the existing identity rules, and a conflicting claim is an `identity_conflict` anomaly.
+  - **Tenant.** Taken only from the matched record; never from the payload. An `ambiguous` notification whose candidates belong to different tenants exposes neither tenant's data and is never resolved automatically.
+  - **Retry of ambiguity.** An `ambiguous` notification is re-evaluated only on operator request, because a repeated read cannot change without a data correction.
+  - **Operator resolution.** An attributed manual disposition names the record to use (or "not applicable"). Processing then continues from the provider lookup. `DeliveryId`, the raw delivery and the normalized notification are never rewritten.
+  - **No subject:** disposition `no_subject`, retained.
+- **PR-4 Resolution.** For a correlated notification, the processor obtains the authoritative current state by lookup (`retrieve`, `retrieveRefund` or `retrieveOperation`), applied through ADR-030 §8 A2, the Order-fact rules (§8) and ADR-031. A state kind may be applied as §2 rule 3 allows; the processor MAY still look up.
+- **PR-5 Failures after persistence.**
+  - **Lookup failure** (`internal_error`, transport failure, timeout): the notification stays pending, with an attempt count and a next-attempt time on bounded backoff. It is never re-classified as `invalid_notification`, never deleted, and never affects the acknowledgement already given.
+  - **Lookup `null`:** parked and re-attempted (possible provider consistency lag) until the parking horizon, then alerted.
+  - **`unrepresentable_success`:** case B (§8b), with the occurrence of ID-7.
+  - **Non-terminal result:** resolves nothing. A bounded re-check MAY be scheduled; reconciliation remains the backstop.
+- **PR-6 Budget exhaustion.** The notification becomes `stalled` and is alerted. It remains stored, reconciliation still resolves the attempt independently, and later processing stays idempotent.
+- **PR-7 Lookups only.** Inbox processing never issues initiate, capture, cancel or refund commands and never replays one. It therefore never crosses a replay deadline or a request-mismatch barrier.
+- **PR-8 Ordering.** Correctness never depends on delivery or processing order. Serializing processing per subject is RECOMMENDED, to avoid redundant lookups.
+- **PR-9 Dispositions.** Notification dispositions:
+  - **Non-terminal:** `pending`, `uncorrelated`, `ambiguous`, `stalled`.
+  - **Terminal:** `applied`, `no_effect`, `redelivery`, `no_subject`, `manually_dispositioned`.
+
+  Delivery statuses are `accepted`, `quarantined` and `case_b`.
+- **PR-10 Reconciliation is independent.** Scheduled reconciliation (§7 Reconciliation) covers every open attempt and operation whether or not a delivery arrived, was parked or stalled.
+- **PR-11 Operational parameters.** The backoff bounds, the stall threshold, the parking horizon and the raw-payload retention period are explicit configuration, validated at composition; there are no hidden defaults.
+  - Reaching any limit changes a disposition (`stalled`) and raises an alert. It never deletes a delivery, a notification or its processing evidence.
+  - A `stalled` notification is still re-attempted at the maximum backoff interval, and an operator can trigger it at any time.
+  - Raw payload may be purged only after the delivery and every one of its notifications have reached a terminal disposition. After a purge, the delivery's metadata, digest, `eventId`, `subject`, dispositions and attribution remain.
+- **PR-12 Quarantine and case B processing.**
+  - A `quarantined` or `case_b` delivery is never processed automatically beyond this rule.
+  - Its events are identified by an attributed review of the retained raw delivery against the adapter's published mapping. The review records the number of events and one disposition per event: `case_b_reported`, `resolved`, `manual_reconciliation`, `not_applicable` or `pending_reconciliation`, each with its evidence.
+  - Unresolved events are resolved only through provider lookup or attributed manual reconciliation, never from raw content.
+  - A `pending_reconciliation` disposition becomes `resolved` when its record becomes terminal.
+  - For a `case_b` delivery, processing first correlates the typed details and raises one `unrepresentable_success` anomaly with the occurrence of ID-7. Without a match it is parked (§4 rule 4); on failure it is retried (PR-5, PR-11).
+  - The delivery becomes terminal only when the review records exactly the declared number of events, all with terminal dispositions, and, for `case_b`, the anomaly is recorded.
+  - Failed writes change nothing and are retried. No path records an Order fact or reversal from raw content, or issues a command.
 
 **Direct processing procedure.** The handler verifies the delivery, correlates it (§4), applies it to the Order with a version check (ADR-029), and
 acknowledges with 2xx only after the save succeeded or when the event is a recognised no-op or stale. Any processing failure returns non-2xx.
@@ -702,8 +866,8 @@ as a whole; the contract cannot return its valid siblings separately and does no
 guarantees make it safe without a new abstraction. Whether a selected PSP batches events per delivery is PSP-dependent and unverified.
 
 1. **Whole-delivery retention.** The application durably retains the **entire raw delivery** (original bytes, headers, receipt time, the provider binding it arrived on) in
-   a retention record with its own application-assigned identity. This is not an inbox and does not normalize events.
-2. **Event identity and tracking.** The offending event's `eventId` and correlation (below) are recorded on the retention record and on the `anomaly` record. Because the
+   a retention record with its own application-assigned identity. This is not an inbox and does not normalize events. Under strategy C, the inbox delivery record is this retention record, and its `DeliveryId` is the retention identity.
+2. **Event identity and tracking.** The offending event's `eventId`, **when supplied**, the `DeliveryId` of the retained delivery and the correlation (below) are recorded on the retention record and on the `anomaly` record. Because the
    delivery cannot be normalized as a whole, sibling events are identified and dispositioned during **attributed manual review** of the retained delivery; the review
    records each event's disposition (applied, recovered by lookup, not applicable) with who and when.
 3. **Siblings are not abandoned.** Siblings that concern **application-originated** operations leave their attempts or operation records **open**, so reconciliation
@@ -718,6 +882,7 @@ guarantees make it safe without a new abstraction. Whether a selected PSP batche
    (non-2xx), per the direct-processing rule of §7 ("acknowledge only after the save succeeded; any processing failure returns non-2xx"). If the offending event
    **cannot be correlated**, the delivery is not acknowledged (direct strategy) or parked (inbox strategy), as ADR-031 §6 and §4 rule 4 require for uncorrelatable
    notifications; the raw delivery is retained in both cases.
+   Under strategy C, this rule is met when the inbox record holding the raw delivery and the typed `unrepresentable_success` details has committed. The anomaly is then recorded, and every sibling event dispositioned, under §7 PR-12. The record is never discarded and stays non-terminal (`case_b`) until both are done.
 7. **Recoverable versus unrecoverable events.** Events concerning application-originated operations are recoverable by lookup. **Provider-originated** events (dashboard
    refunds, captures or cancels, disputes, chargebacks) are **not** reconstructible by lookup: for them, and for events whose `paymentId` was **never observed**, only the
    retained delivery and attributed manual handling remain. An inbox does not remove this limitation.
@@ -734,7 +899,7 @@ operation record (with its idempotency key) before the call and knows which reco
 | Capture (`scope: "capture"`) | `provider`, `paymentId`; `operationId` when the provider returned one | The capture **operation record** (by call context, or `(provider, operationId)`); its record carries the owning `PaymentAttemptId` |
 | Cancel | not applicable (B cannot arise) | — |
 | Refund (`scope: "refund"`) | `provider`, `paymentId`, `refundId` | The **refund attempt** by `(provider, refundId)` or the call context; the **owning PaymentAttempt** by `(provider, paymentId)` |
-| Verified notification | `provider`, `eventId`, `scope`, plus the identifiers of its scope: `paymentId` (payment); `paymentId` and `operationId` (capture; every `operation` notification carries `operationId`, C-10); `paymentId` and `refundId` (refund) | The same records as above. If no record matches, the event is **uncorrelated**: handled under rule 6, never dropped |
+| Verified notification | `provider`, `scope`, `eventId` when supplied, plus the identifiers of its scope: `paymentId` (payment); `paymentId` and `operationId` (capture; every `operation` notification carries `operationId`, C-10); `paymentId` and `refundId` (refund). The application records the `DeliveryId` of the delivery it verified | The same records as above. If no record matches, the event is **uncorrelated**: handled under rule 6, never dropped |
 
 `reference` (`PaymentAttemptId` or `RefundAttemptId`) is a **documented fallback**, used only when the authoritative provider identifier is not available, never as a
 substitute for one that is. `OrderId` is never used as an attempt or provider identifier, and there is no single operation-id slot per attempt (§4 rule 2a).
@@ -837,3 +1002,25 @@ This ADR is consistent with, and assumes, three corrections tracked as follow-up
 4. **Order-level currency guard** on `attachPayment`: optional, deferred to ADR-032 Amendment 4. Until then F-1 is an application rule.
 5. **Deferred capabilities:** manual capture beyond a single full capture, partial or multiple captures, lookup by reference, embedded client-SDK actions,
    normalized decline and refund failure reasons, disputes and chargebacks, saved methods, recurring and merchant-initiated payments, multi-provider routing.
+
+## Amendment records (AMD-ID and AMD-SIG)
+
+The two amendments follow the ADR-032 Amendment 4 pattern: the Proposed text is recorded first, and each amendment has its own acceptance record. The Proposed text was recorded in the working tree of Development on 2026-11-21. Neither amendment changes the status of this ADR (**Accepted**). ADR-030 is unchanged.
+
+**Attribution.** The records below were made on the instruction of the user in the session of 2026-11-21. The user's governance role is not established by repository sources. The architecture owner's act is recorded as instructed by the user, not as signed by a named owner. The record of the underlying decisions is `commerce/docs/architecture/resolution/2026-11-21-payment-notification-identity-records.md`.
+
+### AMD-ID: notification identity
+
+- **Proposal record (2026-11-21).** Decision OD-F21: an amendment separating the application-assigned `deliveryId`, the provider-assigned optional `eventId` (never synthesized) and logical occurrence identity is proposed. Text: §3 (`eventId?`, the `eventId` bullet, `UnrepresentableSuccessDetails`), §4 (`DeliveryId`, rule 5), §7 (strategy comparison; ID-1 to ID-10), §8b (rules 1 and 2, the correlation table) and ADR-031 §6, first bullet.
+- **Acceptance record (2026-11-21).** AMD-ID is accepted, as written above. This acceptance covers AMD-ID only. It does **not** accept AMD-SIG, authorize implementation or a work package, approve any Commerce activity, approve a release scope or authorize release execution.
+
+### AMD-SIG: notification representation and verification boundary
+
+- **Proposal record (2026-11-21).** Decision OD-F13 realization: an amendment adding the `other` notification `subject`, the responsibilities of `verify` (VR-1 to VR-10) and the inbox processing rules (PR-1 to PR-12) is proposed. Text: §2 rule 3, §3 (`PaymentNotificationSubject`, `subject?`, the bullets on `other`, `subject`, `reference`, `providerEventType` and the raw payload), §7 (verification boundary; PR-1 to PR-12) and §8b (rule 6, strategy C).
+- **Acceptance record (2026-11-21).** AMD-SIG is accepted, as written above. This acceptance covers AMD-SIG only. It does **not** accept AMD-ID, authorize implementation or a work package, approve any Commerce activity, approve a release scope or authorize release execution.
+
+### Notes on the text
+
+- The text is the assessment's AP3 and AP4 as amended by AP11 to AP11.12. References internal to the assessment (test identifiers, "Resolution 3", line numbers) are replaced by section references in this ADR.
+- The wording corrections COR-1 to COR-3 (VR-5 "unless VR-9 applies", ID-9, PR-9) are applied as the amended text.
+- A gap that this amendment does not close: no rule here defines when an `accepted` delivery becomes terminal. PR-11 depends on that condition for payload purging; the condition is a Commerce implementation constraint.
